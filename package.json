@@ -1,0 +1,61 @@
+{
+  "name": "openai-compatible-vscode-llm-server",
+  "displayName": "OpenAI compatible VSCode LLM Server",
+  "description": "OpenAI compatible VSCode LLM Server",
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/username/openai-compatible-vscode-llm-server.git"
+  },
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other",
+    "Machine Learning",
+    "Development Tools"
+  ],
+  "keywords": [
+    "openai",
+    "llm",
+    "api",
+    "server",
+    "language model"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "openai-compatible-vscode-llm-server.status",
+        "title": "Show OpenAI Server Status",
+        "category": "OpenAI Server"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.96.0",
+    "@typescript-eslint/eslint-plugin": "^8.22.0",
+    "@typescript-eslint/parser": "^8.22.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^9.19.0",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@types/express": "^5.0.0",
+    "express": "^4.21.2"
+  }
+}
