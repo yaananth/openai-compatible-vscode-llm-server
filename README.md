@@ -35,7 +35,8 @@ curl -X POST http://localhost:3000/v1/chat/completions \
         "role": "user",
         "content": "Hello, how are you?"
       }
-    ]
+    ],
+    "stream": true
   }'
 ```
 
