@@ -3,6 +3,7 @@ import express from 'express';
 import { Server } from 'http';
 
 let server: Server | undefined;
+let statusBarItem: vscode.StatusBarItem;
 let app: express.Application;
 
 function startServer(): boolean {
@@ -12,7 +13,7 @@ function startServer(): boolean {
   }
 
   const config = vscode.workspace.getConfiguration('openaiCompatibleServer');
-  const port = config.get('port', 3000);
+  const port = config.get('port', 3775);
 
   app = express();
   app.use(express.json());
@@ -179,6 +180,7 @@ app.post('/v1/chat/completions', async (req, res) => {
 
   server = app.listen(port, () => {
     vscode.window.showInformationMessage(`OpenAI compatible server running on http://localhost:${port}`);
+    updateStatusBar();
   });
 
   return true;
@@ -193,25 +195,46 @@ function stopServer(): boolean {
   server.close();
   server = undefined;
   vscode.window.showInformationMessage('OpenAI compatible server stopped');
+  updateStatusBar();
   return true;
 }
 
+function updateStatusBar() {
+  if (server) {
+    statusBarItem.text = '$(stop) Stop API Server';
+    statusBarItem.tooltip = 'Click to stop OpenAI Compatible Server';
+    statusBarItem.command = 'openai-compatible-vscode-llm-server.stop';
+  } else {
+    statusBarItem.text = '$(play) Start API Server';
+    statusBarItem.tooltip = 'Click to start OpenAI Compatible Server';
+    statusBarItem.command = 'openai-compatible-vscode-llm-server.start';
+  }
+}
+
 export function activate(context: vscode.ExtensionContext) {
+  // Create status bar item
+  statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  context.subscriptions.push(statusBarItem);
+  updateStatusBar();
+  statusBarItem.show();
+
   // Register start server command
   let startCommand = vscode.commands.registerCommand('openai-compatible-vscode-llm-server.start', () => {
     startServer();
+    updateStatusBar();
   });
 
   // Register stop server command
   let stopCommand = vscode.commands.registerCommand('openai-compatible-vscode-llm-server.stop', () => {
     stopServer();
+    updateStatusBar();
   });
 
   // Register status command
   let statusCommand = vscode.commands.registerCommand('openai-compatible-vscode-llm-server.status', () => {
     if (server) {
       const config = vscode.workspace.getConfiguration('openaiCompatibleServer');
-      const port = config.get('port', 3000);
+      const port = config.get('port', 3775);
       vscode.window.showInformationMessage(`Server is running on http://localhost:${port}`);
     } else {
       vscode.window.showInformationMessage('Server is not running');
@@ -231,4 +254,5 @@ export function deactivate() {
     server.close();
     vscode.window.showInformationMessage('OpenAI compatible server stopped');
   }
+  statusBarItem.dispose();
 }
