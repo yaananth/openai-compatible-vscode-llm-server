@@ -45,7 +45,8 @@ app.post('/v1/chat/completions', async (req, res) => {
     });
 
     // Select model with vendor filter
-    const [model] = await vscode.lm.selectChatModels({ vendor: 'copilot', family: 'gpt-4o' });
+    const modelId = req.body.model || 'gpt-4o';
+    const [model] = await vscode.lm.selectChatModels({ vendor: 'copilot', family: modelId });
     const responseText = await model.sendRequest(craftedPrompt, {});
 
     if (!responseText) {
