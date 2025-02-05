@@ -2,6 +2,8 @@
   "name": "openai-compatible-vscode-llm-server",
   "displayName": "OpenAI compatible VSCode LLM Server",
   "description": "OpenAI compatible VSCode LLM Server",
+  "publisher": "vunguyen9584",
+  "icon": "icon.png",
   "version": "0.0.1",
   "license": "MIT",
   "repository": {
@@ -14,7 +16,7 @@
   "categories": [
     "Other",
     "Machine Learning",
-    "Development Tools"
+    "AI"
   ],
   "keywords": [
     "openai",
