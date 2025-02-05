@@ -8,8 +8,9 @@ export function activate(context: vscode.ExtensionContext) {
 	const app = express();
 	app.use(express.json());
 
-	// Default port - could be made configurable through settings
-	const port = 3000;
+// Get configuration
+const config = vscode.workspace.getConfiguration('openaiCompatibleServer');
+const port = config.get('port', 3000);
 
 	// Models endpoint
 	app.get('/v1/models', (req, res) => {
@@ -70,7 +71,8 @@ app.post('/v1/chat/completions', async (req, res) => {
     });
 
     // Select model with vendor filter
-    const modelId = req.body.model || 'gpt-4o';
+    const defaultModel = vscode.workspace.getConfiguration('openaiCompatibleServer').get('defaultModel', 'gpt-4o');
+    const modelId = req.body.model || defaultModel;
     const [model] = await vscode.lm.selectChatModels({ vendor: 'copilot', family: modelId });
     let chatResponse: vscode.LanguageModelChatResponse | undefined = await model.sendRequest(craftedPrompt, {}, new vscode.CancellationTokenSource().token);
 

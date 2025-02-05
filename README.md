@@ -62,12 +62,25 @@ To build the extension:
 
 ## Extension Settings
 
-Currently, there are no configurable settings. The server runs on port 3000 by default.
+This extension contributes the following settings:
+
+* `openaiCompatibleServer.port`: Port number for the OpenAI compatible server (default: 3000)
+* `openaiCompatibleServer.defaultModel`: Default model to use when none is specified in the request. One of:
+  - `claude-3.5-sonnet`
+  - `gpt-4o`
+  - `gpt-4o-mini`
+  - `o3-mini`
+  - `o1`
+  (default: `gpt-4o`)
+
+To modify these settings:
+1. Open VSCode Settings (File > Preferences > Settings)
+2. Search for "OpenAI Compatible Server"
+3. Adjust the settings as needed
 
 ## Known Issues
 
 - The server currently returns mock responses
-- Port 3000 is hardcoded (will be configurable in future versions)
 
 ## Release Notes
 
