@@ -17,16 +17,34 @@ export function activate(context: vscode.ExtensionContext) {
 			object: 'list',
 			data: [
 				{
-					id: 'gpt-3.5-turbo',
+					id: 'claude-3.5-sonnet',
 					object: 'model',
 					created: 1677610602,
-					owned_by: 'openai',
+					owned_by: 'copilot',
 				},
 				{
 					id: 'gpt-4o',
 					object: 'model',
 					created: 1687882412,
-					owned_by: 'openai',
+					owned_by: 'copilot',
+				},
+				{
+					id: 'gpt-4o-mini',
+					object: 'model',
+					created: 1687882412,
+					owned_by: 'copilot',
+				},
+				{
+					id: 'o3-mini',
+					object: 'model',
+					created: 1687882412,
+					owned_by: 'copilot',
+				},
+				{
+					id: 'o1',
+					object: 'model',
+					created: 1687882412,
+					owned_by: 'copilot',
 				}
 			]
 		});
