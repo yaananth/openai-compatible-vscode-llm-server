@@ -3,14 +3,19 @@ import express from 'express';
 import { Server } from 'http';
 
 let server: Server | undefined;
+let app: express.Application;
 
-export function activate(context: vscode.ExtensionContext) {
-	const app = express();
-	app.use(express.json());
+function startServer(): boolean {
+  if (server) {
+    vscode.window.showInformationMessage('Server is already running');
+    return false;
+  }
 
-// Get configuration
-const config = vscode.workspace.getConfiguration('openaiCompatibleServer');
-const port = config.get('port', 3000);
+  const config = vscode.workspace.getConfiguration('openaiCompatibleServer');
+  const port = config.get('port', 3000);
+
+  app = express();
+  app.use(express.json());
 
 	// Models endpoint
 	app.get('/v1/models', (req, res) => {
@@ -172,17 +177,53 @@ app.post('/v1/chat/completions', async (req, res) => {
   }
 });
 
-	// Start the server
-	server = app.listen(port, () => {
-		vscode.window.showInformationMessage(`OpenAI compatible server running on http://localhost:${port}`);
-	});
+  server = app.listen(port, () => {
+    vscode.window.showInformationMessage(`OpenAI compatible server running on http://localhost:${port}`);
+  });
 
-	// Register a command to get server status
-	let disposable = vscode.commands.registerCommand('openai-compatible-vscode-llm-server.status', () => {
-		vscode.window.showInformationMessage(`Server is running on http://localhost:${port}`);
-	});
+  return true;
+}
 
-	context.subscriptions.push(disposable);
+function stopServer(): boolean {
+  if (!server) {
+    vscode.window.showInformationMessage('Server is not running');
+    return false;
+  }
+
+  server.close();
+  server = undefined;
+  vscode.window.showInformationMessage('OpenAI compatible server stopped');
+  return true;
+}
+
+export function activate(context: vscode.ExtensionContext) {
+  // Register start server command
+  let startCommand = vscode.commands.registerCommand('openai-compatible-vscode-llm-server.start', () => {
+    startServer();
+  });
+
+  // Register stop server command
+  let stopCommand = vscode.commands.registerCommand('openai-compatible-vscode-llm-server.stop', () => {
+    stopServer();
+  });
+
+  // Register status command
+  let statusCommand = vscode.commands.registerCommand('openai-compatible-vscode-llm-server.status', () => {
+    if (server) {
+      const config = vscode.workspace.getConfiguration('openaiCompatibleServer');
+      const port = config.get('port', 3000);
+      vscode.window.showInformationMessage(`Server is running on http://localhost:${port}`);
+    } else {
+      vscode.window.showInformationMessage('Server is not running');
+    }
+  });
+
+  context.subscriptions.push(startCommand);
+  context.subscriptions.push(stopCommand);
+  context.subscriptions.push(statusCommand);
+
+  // Start server by default on activation
+  startServer();
 }
 
 export function deactivate() {

@@ -48,6 +48,16 @@
     },
     "commands": [
       {
+        "command": "openai-compatible-vscode-llm-server.start",
+        "title": "Start OpenAI Server",
+        "category": "OpenAI Server"
+      },
+      {
+        "command": "openai-compatible-vscode-llm-server.stop",
+        "title": "Stop OpenAI Server",
+        "category": "OpenAI Server"
+      },
+      {
         "command": "openai-compatible-vscode-llm-server.status",
         "title": "Show OpenAI Server Status",
         "category": "OpenAI Server"
