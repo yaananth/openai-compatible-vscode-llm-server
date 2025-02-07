@@ -7,3 +7,21 @@
 2025-02-07T09:08:45.242Z - Server started on port 3775
 2025-02-07T09:09:13.386Z - Server stopped during extension deactivation
 2025-02-07T09:09:13.388Z - Extension deactivated
+2025-02-07T09:19:26.402Z - Extension activated
+2025-02-07T09:19:41.901Z - Server started on port 3775
+2025-02-07T09:19:46.507Z - Incoming POST request to /v1/chat/completions
+2025-02-07T09:19:46.508Z - Chat completion request received
+2025-02-07T09:19:46.508Z - Request body: {
+  "model": "gpt-4o",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, how are you?"
+    }
+  ],
+  "stream": true
+}
+2025-02-07T09:19:46.518Z - Selected model: gpt-4o
+2025-02-07T09:19:46.523Z - Starting streaming response
+2025-02-07T09:19:53.022Z - Server stopped
+2025-02-07T09:19:59.613Z - Extension deactivated
