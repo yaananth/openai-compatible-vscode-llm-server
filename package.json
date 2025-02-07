@@ -35,7 +35,7 @@
       "properties": {
         "openaiCompatibleServer.port": {
           "type": "number",
-          "default": 3000,
+          "default": 3775,
           "description": "Port number for the OpenAI compatible server"
         },
         "openaiCompatibleServer.defaultModel": {
@@ -43,6 +43,11 @@
           "default": "gpt-4o",
           "enum": ["claude-3.5-sonnet", "gpt-4o", "gpt-4o-mini", "o3-mini", "o1"],
           "description": "Default model to use when none is specified"
+        },
+        "openaiCompatibleServer.autoStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically start the server on extension activation"
         }
       }
     },

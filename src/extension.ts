@@ -245,8 +245,17 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(stopCommand);
   context.subscriptions.push(statusCommand);
 
-  // Start server by default on activation
-  startServer();
+  const config = vscode.workspace.getConfiguration('openaiCompatibleServer');
+  const autoStart = config.get('autoStart', false);
+
+  if (autoStart) {
+    try {
+      startServer();
+      updateStatusBar();
+    } catch (err) {
+      vscode.window.showErrorMessage('Failed to start server automatically: ' + err);
+    }
+  }
 }
 
 export function deactivate() {
