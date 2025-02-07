@@ -66,6 +66,11 @@
         "command": "openai-compatible-vscode-llm-server.status",
         "title": "Show OpenAI Server Status",
         "category": "OpenAI Server"
+      },
+      {
+        "command": "openai-compatible-vscode-llm-server.viewLogs",
+        "title": "View Server Logs",
+        "category": "OpenAI Compatible Server"
       }
     ]
   },

@@ -1,0 +1,9 @@
+2025-02-07T09:02:17.513Z - Server started on port 3775
+2025-02-07T09:02:23.287Z - Incoming POST request to /v1/chat/completions
+2025-02-07T09:02:23.288Z - Chat completion request received
+2025-02-07T09:07:44.218Z - Server stopped during extension deactivation
+2025-02-07T09:07:44.219Z - Extension deactivated
+2025-02-07T09:08:42.295Z - Extension activated
+2025-02-07T09:08:45.242Z - Server started on port 3775
+2025-02-07T09:09:13.386Z - Server stopped during extension deactivation
+2025-02-07T09:09:13.388Z - Extension deactivated
