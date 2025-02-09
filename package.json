@@ -41,7 +41,13 @@
         "openaiCompatibleServer.defaultModel": {
           "type": "string",
           "default": "gpt-4o",
-          "enum": ["claude-3.5-sonnet", "gpt-4o", "gpt-4o-mini", "o3-mini", "o1"],
+          "enum": [
+            "claude-3.5-sonnet",
+            "gpt-4o",
+            "gpt-4o-mini",
+            "o3-mini",
+            "o1"
+          ],
           "description": "Default model to use when none is specified"
         },
         "openaiCompatibleServer.autoStart": {

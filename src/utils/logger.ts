@@ -1,17 +1,18 @@
-import * as fs from 'fs';
 import * as vscode from 'vscode';
 
 export class Logger {
     private static instance: Logger;
-    private logFilePath: string;
+    private readonly outputChannel: vscode.OutputChannel;
+    private readonly context: vscode.ExtensionContext;
 
-    private constructor(logFilePath: string) {
-        this.logFilePath = logFilePath;
+    private constructor(context: vscode.ExtensionContext) {
+        this.context = context;
+        this.outputChannel = vscode.window.createOutputChannel("OpenAI Compatible Server", { log: true });
     }
 
-    public static initialize(logFilePath: string): Logger {
+    public static initialize(context: vscode.ExtensionContext): Logger {
         if (!Logger.instance) {
-            Logger.instance = new Logger(logFilePath);
+            Logger.instance = new Logger(context);
         }
         return Logger.instance;
     }
@@ -24,22 +25,14 @@ export class Logger {
     }
 
     public log(message: string): void {
-        const timestamp = new Date().toISOString();
-        const logEntry = `${timestamp} - ${message}\n`;
-        fs.appendFileSync(this.logFilePath, logEntry);
+        this.outputChannel.appendLine(message);
     }
 
     public async showLogs(): Promise<void> {
-        if (!this.logFilePath || !fs.existsSync(this.logFilePath)) {
-            vscode.window.showErrorMessage('No logs available');
-            return;
-        }
+        this.outputChannel.show();
+    }
 
-        try {
-            const document = await vscode.workspace.openTextDocument(this.logFilePath);
-            await vscode.window.showTextDocument(document, { preview: false });
-        } catch (error) {
-            vscode.window.showErrorMessage(`Failed to open logs: ${error}`);
-        }
+    public dispose(): void {
+        this.outputChannel.dispose();
     }
 }
