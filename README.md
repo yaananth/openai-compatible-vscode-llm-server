@@ -5,20 +5,21 @@ A VSCode extension that provides an OpenAI-compatible API server interface direc
 ## Features
 
 - Implements OpenAI-compatible REST API endpoints
-- Automatically starts when VSCode launches
-- Provides status command to check server status
+- Optional auto-start configuration
+- Server status monitoring via status bar
+- Integrated logging system
 - Compatible with OpenAI API clients
 
 ## Endpoints
 
-The server runs on `http://localhost:3000` and provides the following endpoints:
+The server runs on `http://localhost:3775` by default and provides the following endpoints:
 
 ### GET /v1/models
-Lists available models (currently returns mock data for gpt-3.5-turbo and gpt-4)
+Lists available models (currently returns mock data)
 
 Example:
 ```bash
-curl http://localhost:3000/v1/models
+curl http://localhost:3775/v1/models
 ```
 
 ### POST /v1/chat/completions
@@ -26,7 +27,7 @@ Chat completion endpoint compatible with OpenAI's API format
 
 Example:
 ```bash
-curl -X POST http://localhost:3000/v1/chat/completions \
+curl -X POST http://localhost:3775/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gpt-4o",
@@ -43,18 +44,13 @@ curl -X POST http://localhost:3000/v1/chat/completions \
 ## Using the Extension
 
 1. Install the extension in VSCode
-2. The server automatically starts when VSCode launches
-3. Use the "Show OpenAI Server Status" command to check the server status
-4. The server will be available at `http://localhost:3000`
-
-## Development
-
-To build the extension:
-
-1. Clone the repository
-2. Run `npm install`
-3. Run `npm run compile`
-4. Press F5 to launch a new VSCode window with the extension
+2. Use the command palette (Ctrl+Shift+P) to access the following commands:
+   - "OpenAI Server: Start OpenAI Server"
+   - "OpenAI Server: Stop OpenAI Server"
+   - "OpenAI Server: Show OpenAI Server Status"
+   - "OpenAI Compatible Server: View Server Logs"
+3. Monitor server status in the VSCode status bar
+4. The server will be available at the configured port (default: 3775)
 
 ## Requirements
 
@@ -64,7 +60,7 @@ To build the extension:
 
 This extension contributes the following settings:
 
-* `openaiCompatibleServer.port`: Port number for the OpenAI compatible server (default: 3000)
+* `openaiCompatibleServer.port`: Port number for the OpenAI compatible server (default: 3775)
 * `openaiCompatibleServer.defaultModel`: Default model to use when none is specified in the request. One of:
   - `claude-3.5-sonnet`
   - `gpt-4o`
@@ -72,6 +68,7 @@ This extension contributes the following settings:
   - `o3-mini`
   - `o1`
   (default: `gpt-4o`)
+* `openaiCompatibleServer.autoStart`: Automatically start the server when VSCode launches (default: false)
 
 To modify these settings:
 1. Open VSCode Settings (File > Preferences > Settings)
@@ -84,9 +81,9 @@ To modify these settings:
 
 ## Release Notes
 
-### 0.0.1
+### 0.0.5
 
-Initial release:
-- Basic OpenAI-compatible API server
-- Models and chat completions endpoints
-- Server status command
+- Added logging system with viewable logs
+- Added status bar integration
+- Added auto-start configuration option
+- Server port changed to 3775 by default
