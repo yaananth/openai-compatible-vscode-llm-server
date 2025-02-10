@@ -1,16 +1,11 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { Logger } from './utils/logger';
 import { StatusBarManager } from './statusBar/statusBar';
 import { ServerManager } from './server/server';
 
 export function activate(context: vscode.ExtensionContext) {
-    // Initialize logger
-    const logFilePath = context.storageUri 
-        ? path.join(context.storageUri.fsPath, 'server.log')
-        : path.join(context.extensionUri.fsPath, 'server.log');
-    
-    const logger = Logger.initialize(logFilePath);
+    // Initialize logger with extension context
+    const logger = Logger.initialize(context);
     logger.log('Extension activated');
 
     // Initialize managers in correct order
@@ -39,11 +34,14 @@ export function activate(context: vscode.ExtensionContext) {
         logger.showLogs();
     });
 
-    // Register all commands
-    context.subscriptions.push(startCommand);
-    context.subscriptions.push(stopCommand);
-    context.subscriptions.push(statusCommand);
-    context.subscriptions.push(viewLogsCommand);
+    // Register all commands and disposables
+    context.subscriptions.push(
+        startCommand,
+        stopCommand,
+        statusCommand,
+        viewLogsCommand,
+        logger
+    );
 
     // Handle auto-start
     const config = vscode.workspace.getConfiguration('openaiCompatibleServer');
@@ -67,7 +65,7 @@ export function deactivate() {
         serverManager.stop();
         logger.log('Server stopped during extension deactivation');
     }
-    
+
     statusBar.dispose();
     logger.log('Extension deactivated');
 }
