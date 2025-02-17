@@ -14,6 +14,6 @@ export interface ExtensionState {
 }
 
 export interface ChatMessage {
-    role: string;
+    role: 'system' | 'user' | 'assistant';
     content: string;
 }

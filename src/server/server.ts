@@ -37,9 +37,34 @@ export class ServerManager {
 
     private setupMiddleware(): void {
         this.app.use(express.json());
-        this.app.use((req, res, next) => {
+        
+        // Custom middleware for request logging and CORS
+        this.app.use('/v1', (req: express.Request, res: express.Response, next: express.NextFunction) => {
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+            
+            if (req.method === 'OPTIONS') {
+                res.status(200).end();
+                return;
+            }
+
             this.logger.log(`Incoming ${req.method} request to ${req.path}`);
             next();
+        });
+
+        // Global error handling middleware
+        this.app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+            this.logger.log(`Error caught in middleware: ${err.message}`);
+            if (!res.headersSent) {
+                res.status(500).json({
+                    error: {
+                        message: err.message || 'Internal server error',
+                        type: 'server_error'
+                    }
+                });
+            }
         });
     }
 
