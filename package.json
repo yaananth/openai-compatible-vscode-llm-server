@@ -4,7 +4,7 @@
   "description": "OpenAI compatible VSCode LLM Server",
   "publisher": "vunguyen9584",
   "icon": "icon.png",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "license": "MIT",
   "repository": {
     "type": "git",
