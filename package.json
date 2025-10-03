@@ -40,8 +40,9 @@
         },
         "openaiCompatibleServer.defaultModel": {
           "type": "string",
-          "default": "claude-sonnet-4.5",
+          "default": "anthropic/claude-3.7-sonnet:thinking",
           "enum": [
+            "anthropic/claude-3.7-sonnet:thinking",
             "claude-sonnet-4.5",
             "claude-sonnet-4",
             "claude-opus-4.1",

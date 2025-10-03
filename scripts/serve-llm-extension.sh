@@ -239,7 +239,7 @@ prepare_dev_workspace() {
 {
   "openaiCompatibleServer.autoStart": true,
   "openaiCompatibleServer.port": $SERVER_PORT,
-  "openaiCompatibleServer.defaultModel": "claude-sonnet-4.5"
+  "openaiCompatibleServer.defaultModel": "anthropic/claude-3.7-sonnet:thinking"
 }
 EOF
 }
