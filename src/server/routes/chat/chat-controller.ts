@@ -26,8 +26,8 @@ export class ChatController {
                 throw new Error('Messages must be an array');
             }
 
-            const model = await this.modelManager.getModel();
-            const modelId = requestedModel || await this.modelManager.getModelId();
+            const model = await this.modelManager.getModel(requestedModel);
+            const modelId = this.modelManager.getActiveModelIdentifier() || model.id || requestedModel || await this.modelManager.getModelId();
 
             const craftedPrompt = messages.map((msg: ChatMessage, index: number) => 
                 this.modelManager.createChatMessage(msg, index)
@@ -47,7 +47,7 @@ export class ChatController {
             }
 
             if (stream) {
-                await this.handleStreamResponse(res, chatResponse, modelId, promptTokenValue);
+                await this.handleStreamResponse(res, chatResponse, modelId, promptTokenValue, model);
             } else {
                 await this.handleNonStreamResponse(res, chatResponse, modelId, promptTokenValue, model);
             }
@@ -60,13 +60,15 @@ export class ChatController {
         res: Response, 
         chatResponse: vscode.LanguageModelChatResponse,
         modelId: string,
-        promptTokens: number
+        promptTokens: number,
+        model: vscode.LanguageModelChat
     ): Promise<void> {
         const streamHandler = new StreamHandler(
             res,
             modelId,
             this.logger,
             this.responseFormatter,
+            model,
             this.modelManager
         );
 

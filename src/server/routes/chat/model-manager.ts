@@ -2,31 +2,98 @@ import * as vscode from 'vscode';
 import { Logger } from '../../../utils/logger';
 
 export class ModelManager {
+    private cachedModels = new Map<string, vscode.LanguageModelChat>();
+    private lastSelectedModel?: { id: string; model: vscode.LanguageModelChat };
+
     constructor(private logger: Logger) {}
 
-    async getModel(): Promise<vscode.LanguageModelChat> {
+    async getModel(preferredModelId?: string): Promise<vscode.LanguageModelChat> {
         if (!vscode.lm) {
             throw new Error('Language model API not available. Please ensure the GitHub Copilot extension is installed and activated.');
         }
 
-        const models = await vscode.lm.selectChatModels();
+        const targetId = preferredModelId?.trim() || await this.getModelId();
 
-        if (!models || models.length === 0) {
-            throw new Error('No language models available. Please check your GitHub Copilot connection.');
+        if (targetId) {
+            const cached = this.cachedModels.get(targetId);
+            if (cached) {
+                this.lastSelectedModel = { id: cached.id, model: cached };
+                return cached;
+            }
         }
 
-        this.logger.log(`Found ${models.length} available models`);
-        const model = models[0];
+        const selectors: vscode.LanguageModelChatSelector[] = [];
 
-        if (!model) {
-            throw new Error('Failed to initialize language model');
+        if (preferredModelId?.trim()) {
+            const normalized = preferredModelId.trim();
+            selectors.push({ id: normalized });
+            selectors.push({ family: normalized });
         }
 
-        // Test the model with a simple request
-        await this.testModel(model);
-        
-        this.logger.log('Language model initialized successfully');
-        return model;
+        if (!preferredModelId && targetId) {
+            selectors.push({ id: targetId });
+            selectors.push({ family: targetId });
+        }
+
+        selectors.push({});
+
+        for (const selector of selectors) {
+            try {
+                const models = await vscode.lm.selectChatModels(selector);
+                if (!models || models.length === 0) {
+                    continue;
+                }
+
+                const selected = this.selectModelFromList(models, preferredModelId, targetId);
+                await this.ensureModelReady(selected);
+                this.cacheModel(selected);
+                this.lastSelectedModel = { id: selected.id, model: selected };
+                this.logger.log(`Using language model ${selected.name} (${selected.id})`);
+                return selected;
+            } catch (error) {
+                this.logger.log(`Selector ${JSON.stringify(selector)} failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+        }
+
+        throw new Error('No language models available. Please check your GitHub Copilot connection.');
+    }
+
+    private selectModelFromList(
+        models: readonly vscode.LanguageModelChat[],
+        preferredModelId?: string,
+        fallbackId?: string
+    ): vscode.LanguageModelChat {
+        const trimmedPreferred = preferredModelId?.trim();
+        const trimmedFallback = fallbackId?.trim();
+
+        if (trimmedPreferred) {
+            const match = models.find(model => model.id === trimmedPreferred || model.family === trimmedPreferred);
+            if (match) {
+                return match;
+            }
+        }
+
+        if (trimmedFallback && trimmedFallback !== trimmedPreferred) {
+            const fallbackMatch = models.find(model => model.id === trimmedFallback || model.family === trimmedFallback);
+            if (fallbackMatch) {
+                return fallbackMatch;
+            }
+        }
+
+        return models[0];
+    }
+
+    private async ensureModelReady(model: vscode.LanguageModelChat): Promise<void> {
+        if (!this.lastSelectedModel || this.lastSelectedModel.id !== model.id) {
+            await this.testModel(model);
+        }
+    }
+
+    private cacheModel(model: vscode.LanguageModelChat): void {
+        this.cachedModels.set(model.id, model);
+        if (model.family) {
+            this.cachedModels.set(model.family, model);
+        }
     }
 
     private async testModel(model: vscode.LanguageModelChat): Promise<void> {
@@ -41,9 +108,13 @@ export class ModelManager {
         }
     }
 
+    getActiveModelIdentifier(): string | undefined {
+        return this.lastSelectedModel?.id;
+    }
+
     async getModelId(): Promise<string> {
         const config = vscode.workspace.getConfiguration('openaiCompatibleServer');
-        return config.get('defaultModel', 'gpt-4');
+        return config.get('defaultModel', 'claude-sonnet-4.5');
     }
 
     async countTokens(model: vscode.LanguageModelChat, text: string): Promise<number> {

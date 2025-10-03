@@ -10,6 +10,7 @@ export class StreamHandler {
         private modelId: string,
         private logger: Logger,
         private responseFormatter: ResponseFormatter,
+        private model: vscode.LanguageModelChat,
         private modelManager: ModelManager
     ) {}
 
@@ -59,8 +60,7 @@ export class StreamHandler {
     }
 
     private async handleFinalChunks(responseTextAll: string, promptTokens: number): Promise<void> {
-        const model = await this.modelManager.getModel();
-        const completionTokens = await this.modelManager.countTokens(model, responseTextAll);
+        const completionTokens = await this.modelManager.countTokens(this.model, responseTextAll);
 
         const emptyChunk = this.responseFormatter.createStreamChunk(this.modelId);
         this.writeChunk(emptyChunk);

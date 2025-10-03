@@ -6,6 +6,7 @@ import { Logger } from '../utils/logger';
 import { StatusBarManager } from '../statusBar/statusBar';
 import modelsRouter from './routes/models';
 import chatRouter from './routes/chat';
+import responsesRouter from './routes/responses';
 
 export class ServerManager {
     private static instance: ServerManager;
@@ -73,6 +74,7 @@ export class ServerManager {
     private setupRoutes(): void {
         this.app.use('/v1/models', modelsRouter(this.logger));
         this.app.use('/v1/chat', chatRouter(this.logger));
+        this.app.use('/v1/responses', responsesRouter(this.logger));
     }
 
     public start(): boolean {

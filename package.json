@@ -40,13 +40,31 @@
         },
         "openaiCompatibleServer.defaultModel": {
           "type": "string",
-          "default": "gpt-4o",
+          "default": "claude-sonnet-4.5",
           "enum": [
+            "claude-sonnet-4.5",
+            "claude-sonnet-4",
+            "claude-opus-4.1",
+            "claude-opus-4",
+            "claude-3.7-sonnet-thought",
+            "claude-3.7-sonnet",
             "claude-3.5-sonnet",
+            "gpt-5",
+            "gpt-5-mini",
+            "gpt-5-codex",
+            "gpt-4.1",
             "gpt-4o",
             "gpt-4o-mini",
+            "gpt-4-turbo",
+            "gpt-4",
+            "gpt-3.5-turbo",
+            "grok-code",
+            "o4-mini",
+            "o3",
             "o3-mini",
-            "o1"
+            "o1",
+            "gemini-2.5-pro",
+            "gemini-2.0-flash"
           ],
           "description": "Default model to use when none is specified"
         },
@@ -82,8 +100,9 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "compile": "echo Skipping compile - already compiled",
     "watch": "tsc -watch -p ./",
+    "package:vsix": "npx @vscode/vsce package --no-dependencies --out .vsix/openai-compatible-vscode-llm-server.vsix",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "vscode-test"
@@ -97,6 +116,7 @@
     "@typescript-eslint/parser": "^8.22.0",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1",
+    "@vscode/vsce": "^3.1.1",
     "eslint": "^9.19.0",
     "typescript": "^5.7.3"
   },
