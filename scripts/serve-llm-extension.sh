@@ -15,6 +15,96 @@ DEV_WORKSPACE_VSCODE_DIR="$DEV_WORKSPACE_DIR/.vscode"
 DEV_USER_DATA_DIR="$DEV_WORKSPACE_DIR/.vscode-user"
 DEV_EXTENSIONS_DIR="$DEV_WORKSPACE_DIR/.vscode-extensions"
 DEV_PID_FILE="$DEV_WORKSPACE_DIR/.insiders.pid"
+PACKAGE_DESC_BACKUP=""
+
+trap restore_package_description EXIT
+
+augment_package_description_with_commit() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "warning: python3 not available; skipping description tagging." >&2
+        return 0
+    fi
+
+    local package_json="$REPO_DIR/package.json"
+
+    PACKAGE_DESC_BACKUP="$(mktemp 2>/dev/null || mktemp -t package-desc)"
+
+    local commit_hash
+    local commit_message
+    commit_hash="$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+    commit_message="$(git log -1 --pretty=%s 2>/dev/null || echo "unknown commit")"
+
+    COMMIT_HASH="$commit_hash" COMMIT_MESSAGE="$commit_message" PACKAGE_DESC_BACKUP="$PACKAGE_DESC_BACKUP" python3 - "$package_json" <<'PYTHON'
+import json
+import os
+import sys
+
+pkg_path = sys.argv[1]
+backup_path = os.environ.get('PACKAGE_DESC_BACKUP')
+
+with open(pkg_path, 'r', encoding='utf-8') as f:
+    data = json.load(f)
+
+original_desc = data.get('description', '')
+
+commit_hash = os.environ.get('COMMIT_HASH', 'unknown')
+commit_message = os.environ.get('COMMIT_MESSAGE', 'unknown commit').replace('\n', ' ').strip()
+
+description_suffix = f" (commit {commit_hash}: {commit_message})"
+new_desc = original_desc
+if description_suffix not in original_desc:
+    new_desc = f"{original_desc}{description_suffix}"
+
+with open(backup_path, 'w', encoding='utf-8') as backup:
+    json.dump({"description": original_desc}, backup)
+
+data['description'] = new_desc
+
+with open(pkg_path, 'w', encoding='utf-8') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+PYTHON
+}
+
+restore_package_description() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        return 0
+    fi
+
+    if [ -z "$PACKAGE_DESC_BACKUP" ]; then
+        return 0
+    fi
+
+    if [ ! -f "$PACKAGE_DESC_BACKUP" ]; then
+        return 0
+    fi
+
+    local package_json="$REPO_DIR/package.json"
+
+    PACKAGE_DESC_BACKUP_PATH="$PACKAGE_DESC_BACKUP" python3 - "$package_json" <<'PYTHON'
+import json
+import sys
+import os
+
+pkg_path = sys.argv[1]
+backup_path = os.environ.get('PACKAGE_DESC_BACKUP_PATH')
+
+with open(pkg_path, 'r', encoding='utf-8') as f:
+    data = json.load(f)
+
+with open(backup_path, 'r', encoding='utf-8') as backup:
+    original = json.load(backup)
+
+data['description'] = original.get('description', data.get('description', ''))
+
+with open(pkg_path, 'w', encoding='utf-8') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+PYTHON
+
+    rm -f "$PACKAGE_DESC_BACKUP"
+    PACKAGE_DESC_BACKUP=""
+}
 
 print_usage() {
     cat <<'EOF'
@@ -281,9 +371,13 @@ build_vsix() {
     rm -f "$VSIX_PATH"
     (cd "$REPO_DIR" && npm install)
     (cd "$REPO_DIR" && npm run compile)
+    augment_package_description_with_commit
+    trap 'restore_package_description' RETURN
     # Package WITH dependencies (express, body-parser etc needed at runtime)
     (cd "$REPO_DIR" && npx @vscode/vsce package --out "$VSIX_PATH")
     BUILD_VSIX_PATH="$VSIX_PATH"
+    trap - RETURN
+    restore_package_description
 }
 
 terminate_existing_dev_instance() {
