@@ -1,4 +1,7 @@
 import { Request, Response } from 'express';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { Logger } from '../../../utils/logger';
 import { ModelManager } from '../chat/model-manager';
@@ -19,6 +22,8 @@ export class ResponsesController {
     async handleResponse(req: Request, res: Response): Promise<void> {
         this.logger.log('Responses API request received');
         this.logger.log(`Request body: ${JSON.stringify(req.body, null, 2)}`);
+
+        this.writeDebugLog(req);
 
         const {
             input,
@@ -134,6 +139,23 @@ export class ResponsesController {
         }
     }
 
+    private writeDebugLog(req: Request): void {
+        try {
+            const logDir = path.join(os.homedir(), '.factory');
+            const logPath = path.join(logDir, 'responses-debug.log');
+            const entry = [
+                `time=${new Date().toISOString()}`,
+                `stream=${JSON.stringify(req.body?.stream)}`,
+                `accept=${req.headers['accept'] ?? ''}`,
+                `content-type=${req.headers['content-type'] ?? ''}`,
+                `body=${JSON.stringify(req.body)}`
+            ].join(' | ');
+            fs.appendFileSync(logPath, entry + '\n');
+        } catch (error) {
+            // Swallow logging errors to avoid affecting request handling
+        }
+    }
+
     private buildMessages(input: unknown, instructionText: string, fallbackMessages: unknown): ChatMessage[] {
         const messages: ChatMessage[] = [];
 
@@ -200,24 +222,57 @@ export class ResponsesController {
         }
 
         if (Array.isArray(content)) {
-            const parts = content
-                .map(part => this.extractText(part))
-                .filter(part => part.length > 0);
-            return parts.join('');
+            const parts: string[] = [];
+            for (const part of content) {
+                const text = this.extractText(part);
+                if (text.length > 0) {
+                    parts.push(text);
+                }
+            }
+            return parts.join('\n');
         }
 
-        if (typeof content === 'object' && content !== null) {
+        if (this.isPlainObject(content)) {
             const record = content as Record<string, unknown>;
-            if (typeof record.text === 'string') {
-                return record.text;
-            }
-
-            if (Array.isArray(record.content)) {
-                return this.extractText(record.content);
+            const directText = this.extractTextFromContentObject(record);
+            if (directText) {
+                return directText;
             }
         }
 
         return '';
+    }
+
+    private extractTextFromContentObject(content: Record<string, unknown>): string | undefined {
+        if (typeof content.text === 'string') {
+            return content.text;
+        }
+
+        const type = typeof content.type === 'string' ? content.type : undefined;
+
+        if (type === 'text' && typeof content.value === 'string') {
+            return content.value;
+        }
+
+        if (type === 'input_text') {
+            if (typeof content.input_text === 'string') {
+                return content.input_text;
+            }
+            if (typeof content.content === 'string') {
+                return content.content;
+            }
+        }
+
+        if (type === 'output_text' && typeof content.output_text === 'string') {
+            return content.output_text;
+        }
+
+        if (Array.isArray(content.content)) {
+            const nested = this.extractText(content.content);
+            return nested.length > 0 ? nested : undefined;
+        }
+
+        return undefined;
     }
 
     private normalizeRole(role: unknown): ChatMessage['role'] {
