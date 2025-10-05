@@ -49,6 +49,11 @@ export class ResponsesStreamHandler {
         return `msg_${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
     }
 
+    private generateObfuscation(fragment: string, sequence: number): string {
+        const source = `${fragment}:${sequence}`;
+        return Buffer.from(source).toString('base64');
+    }
+
     async handleStream(
         chatResponse: vscode.LanguageModelChatResponse,
         promptTokens: number,
@@ -59,13 +64,17 @@ export class ResponsesStreamHandler {
         let responseText = '';
 
         try {
+            const effectiveInstructions = instructions ?? '';
+
+            const reasoningEncrypted = Buffer.from(`${effectiveInstructions}:${this.responseId}`).toString('base64');
+
             const createdEnvelope = this.responseFormatter.createResponseEnvelope(
                 this.responseId,
                 this.modelId,
                 'in_progress',
                 promptTokens,
                 0,
-                instructions,
+                effectiveInstructions,
                 metadata,
                 {
                     createdAt: this.createdAt,
@@ -91,7 +100,7 @@ export class ResponsesStreamHandler {
                 id: this.reasoningItemId,
                 type: 'reasoning',
                 status: 'in_progress',
-                encrypted_content: '',
+                encrypted_content: reasoningEncrypted,
                 summary: [] as unknown[]
             };
 
@@ -102,14 +111,16 @@ export class ResponsesStreamHandler {
                 item: reasoningItem
             });
 
+            const reasoningCompletedItem = {
+                ...reasoningItem,
+                status: 'completed'
+            };
+
             this.writeEvent('response.output_item.done', {
                 type: 'response.output_item.done',
                 sequence_number: this.nextSequence(),
                 output_index: 0,
-                item: {
-                    ...reasoningItem,
-                    status: 'completed'
-                }
+                item: reasoningCompletedItem
             });
 
             const messageItemBase = {
@@ -149,14 +160,16 @@ export class ResponsesStreamHandler {
                 }
 
                 responseText += fragment;
+                const sequence = this.nextSequence();
                 this.writeEvent('response.output_text.delta', {
                     type: 'response.output_text.delta',
-                    sequence_number: this.nextSequence(),
+                    sequence_number: sequence,
                     item_id: this.messageItemId,
                     output_index: 1,
                     content_index: 0,
                     delta: fragment,
-                    logprobs: [] as unknown[]
+                    logprobs: [] as unknown[],
+                    obfuscation: this.generateObfuscation(fragment, sequence)
                 });
             }
 
@@ -177,6 +190,14 @@ export class ResponsesStreamHandler {
                 text: responseText
             };
 
+            const messageCompletedItem = {
+                id: this.messageItemId,
+                type: 'message',
+                status: 'completed',
+                role: 'assistant',
+                content: [finalPart]
+            };
+
             this.writeEvent('response.content_part.done', {
                 type: 'response.content_part.done',
                 sequence_number: this.nextSequence(),
@@ -190,13 +211,7 @@ export class ResponsesStreamHandler {
                 type: 'response.output_item.done',
                 sequence_number: this.nextSequence(),
                 output_index: 1,
-                item: {
-                    id: this.messageItemId,
-                    type: 'message',
-                    status: 'completed',
-                    role: 'assistant',
-                    content: [finalPart]
-                }
+                item: messageCompletedItem
             });
 
             const completionTokens = await this.modelManager.countTokens(this.model, responseText);
@@ -206,13 +221,14 @@ export class ResponsesStreamHandler {
                 'completed',
                 promptTokens,
                 completionTokens,
-                instructions,
+                effectiveInstructions,
                 metadata,
                 {
                     createdAt: this.createdAt,
                     outputText: responseText,
                     outputId: this.messageItemId,
-                    includeOutput: true
+                    includeOutput: true,
+                    outputItems: [reasoningCompletedItem, messageCompletedItem]
                 }
             );
 
@@ -221,7 +237,6 @@ export class ResponsesStreamHandler {
                 sequence_number: this.nextSequence(),
                 response: completedEnvelope
             });
-            this.writeEvent('done', '[DONE]');
             this.res.end();
         } catch (error) {
             this.logger.log(`Responses streaming error: ${error instanceof Error ? error.message : 'Unknown error'}`);

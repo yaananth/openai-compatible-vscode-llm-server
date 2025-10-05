@@ -73,4 +73,30 @@ describe('ResponseFormatter', () => {
         assert.equal(usage.output_tokens, 10);
         assert.equal(usage.total_tokens, 60);
     });
+    it('injects custom output items when provided', () => {
+        const reasoning = { id: 'rs_1', type: 'reasoning', encrypted_content: 'enc', summary: [] };
+        const message = {
+            id: 'msg_1',
+            type: 'message',
+            status: 'completed',
+            role: 'assistant',
+            content: [{ type: 'output_text', text: 'hello', annotations: [], logprobs: [] }]
+        };
+
+        const response = formatter.createResponsesResponse(
+            'resp_with_items',
+            'gpt-5-codex-high',
+            'hello',
+            10,
+            2,
+            'completed',
+            'inst',
+            null,
+            { createdAt: 42, outputId: 'msg_1', outputItems: [reasoning, message] }
+        );
+
+        assert.equal(response.output.length, 2);
+        assert.deepEqual(response.output[0], reasoning);
+        assert.equal((response.output[1] as any).id, 'msg_1');
+    });
 });

@@ -80,8 +80,7 @@ describe('ResponsesStreamHandler', () => {
             'response.output_text.done',
             'response.content_part.done',
             'response.output_item.done',
-            'response.completed',
-            'done'
+            'response.completed'
         ]);
 
         const createdPayload = JSON.parse(events[0].dataLine);
@@ -91,6 +90,8 @@ describe('ResponsesStreamHandler', () => {
         const deltaPayload = JSON.parse(events[6].dataLine);
         assert.equal(deltaPayload.delta, 'Hello');
         assert.equal(deltaPayload.output_index, 1);
+        const expectedObfuscation = Buffer.from(`Hello:${deltaPayload.sequence_number}`).toString('base64');
+        assert.equal(deltaPayload.obfuscation, expectedObfuscation);
 
         const donePayload = JSON.parse(events[8].dataLine);
         assert.equal(donePayload.text, 'Hello.');
@@ -99,7 +100,5 @@ describe('ResponsesStreamHandler', () => {
         assert.equal(completedPayload.response.status, 'completed');
         assert.equal(completedPayload.response.output_text, 'Hello.');
         assert.equal(completedPayload.response.usage.total_tokens, 'Hello.'.length + 10);
-
-        assert.equal(events[12].dataLine, '[DONE]');
     });
 });

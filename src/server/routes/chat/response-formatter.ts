@@ -19,12 +19,15 @@ export class ResponseFormatter {
             outputText?: string;
             outputId?: string;
             includeOutput?: boolean;
+            outputItems?: Array<Record<string, unknown>>;
         }
     ): Record<string, unknown> {
         const createdAt = options?.createdAt ?? Math.floor(Date.now() / 1000);
         const outputText = options?.outputText ?? '';
         const includeOutput = options?.includeOutput ?? true;
         const outputId = options?.outputId ?? this.generateMessageId();
+
+        const outputItems = options?.outputItems;
 
         const response: Record<string, unknown> = {
             id: responseId,
@@ -64,6 +67,17 @@ export class ResponseFormatter {
         };
 
         response.instructions = instructions ?? '';
+
+        if (outputItems && includeOutput) {
+            response.output = outputItems;
+            if (outputItems.length > 0) {
+                const messageItem = outputItems.find(item => (item as { type?: string }).type === 'message');
+                if (messageItem) {
+                    const text = (messageItem as { content?: Array<{ text?: string }> }).content?.[0]?.text ?? '';
+                    response.output_text = text;
+                }
+            }
+        }
 
         return response;
     }
@@ -138,7 +152,7 @@ export class ResponseFormatter {
         status: ResponseStatus = 'completed',
         instructions: string | null = null,
         metadata: Record<string, unknown> | null = null,
-        options?: { createdAt?: number; outputId?: string }
+        options?: { createdAt?: number; outputId?: string; outputItems?: Array<Record<string, unknown>> }
     ): ResponsesResponse {
         const response = this.createResponseEnvelope(
             responseId,
@@ -152,7 +166,8 @@ export class ResponseFormatter {
                 createdAt: options?.createdAt,
                 outputText: responseText,
                 outputId: options?.outputId,
-                includeOutput: true
+                includeOutput: true,
+                outputItems: options?.outputItems
             }
         ) as unknown as ResponsesResponse;
 
