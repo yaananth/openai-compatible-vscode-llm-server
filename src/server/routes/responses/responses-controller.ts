@@ -83,14 +83,18 @@ export class ResponsesController {
 
         this.writeDebugLog(req);
 
+        const body = (req.body ?? {}) as Record<string, unknown>;
         const {
             input,
             model: requestedModel,
-            stream = false,
+            stream: streamRequest,
             instructions,
             previous_response_id: previousResponseId,
             metadata: requestMetadata
-        } = req.body;
+        } = body;
+
+        const stream = this.shouldStream(streamRequest, req);
+        this.logger.log(`Streaming enabled: ${stream}`);
 
         if (previousResponseId) {
             const error = new Error('previous_response_id is not supported yet.');
@@ -198,6 +202,45 @@ export class ResponsesController {
         } catch (error) {
             this.handleError(res, error);
         }
+    }
+
+    private shouldStream(streamField: unknown, req: Request): boolean {
+        if (typeof streamField === 'boolean') {
+            return streamField;
+        }
+
+        if (typeof streamField === 'string') {
+            const normalized = streamField.toLowerCase();
+            if (['true', '1', 'yes', 'on'].includes(normalized)) {
+                return true;
+            }
+            if (['false', '0', 'no', 'off'].includes(normalized)) {
+                return false;
+            }
+        }
+
+        const helperMethod = req.header('x-stainless-helper-method');
+        if (helperMethod && helperMethod.toLowerCase() === 'stream') {
+            return true;
+        }
+
+        const openAiStream = req.header('x-openai-stream');
+        if (openAiStream && openAiStream.toLowerCase() === 'true') {
+            return true;
+        }
+
+        const acceptHeader = req.header('accept');
+        if (acceptHeader) {
+            const acceptsStream = acceptHeader
+                .split(',')
+                .map(value => value.trim().toLowerCase())
+                .includes('text/event-stream');
+            if (acceptsStream) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private writeDebugLog(req: Request): void {
