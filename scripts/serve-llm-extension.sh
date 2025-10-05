@@ -226,11 +226,7 @@ trigger_server_start() {
 
 run_npm_tasks() {
     (cd "$REPO_DIR" && npm install)
-    if [ -f "$REPO_DIR/out/extension.js" ]; then
-        echo "✓ Compiled code found, skipping compilation"
-    else
-        (cd "$REPO_DIR" && npm run compile)
-    fi
+    (cd "$REPO_DIR" && npm run compile)
 }
 
 prepare_dev_workspace() {
@@ -284,11 +280,7 @@ build_vsix() {
     mkdir -p "$VSIX_DIR"
     rm -f "$VSIX_PATH"
     (cd "$REPO_DIR" && npm install)
-    if [ -f "$REPO_DIR/out/extension.js" ]; then
-        echo "✓ Compiled code found, skipping compilation"
-    else
-        (cd "$REPO_DIR" && npm run compile)
-    fi
+    (cd "$REPO_DIR" && npm run compile)
     # Package WITH dependencies (express, body-parser etc needed at runtime)
     (cd "$REPO_DIR" && npx @vscode/vsce package --out "$VSIX_PATH")
     BUILD_VSIX_PATH="$VSIX_PATH"
@@ -381,7 +373,7 @@ case "$COMMAND" in
         build_vsix
         INSTALL_CLI="$(resolve_install_cli)"
         echo "Installing extension to $INSTALL_CLI..."
-        "$INSTALL_CLI" --install-extension "$BUILD_VSIX_PATH"
+        "$INSTALL_CLI" --install-extension "$BUILD_VSIX_PATH" --force
         echo "✓ Extension installed"
         echo ""
         ensure_autostart_enabled "$INSTALL_CLI"
