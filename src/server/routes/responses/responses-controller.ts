@@ -5,12 +5,7 @@ import { ModelManager } from '../chat/model-manager';
 import { ResponseFormatter } from '../chat/response-formatter';
 import { ChatMessage } from '../../../config/types';
 import { ResponsesStreamHandler } from './stream-handler';
-
-type ReasoningOptions = {
-    effort?: 'low' | 'medium' | 'high' | 'default';
-    summary?: 'off' | 'detailed' | 'default';
-    budget_tokens?: number;
-};
+import { ModelPreset, ReasoningOptions, resolveModelPreset } from '../shared/model-presets';
 
 export class ResponsesController {
     private modelManager: ModelManager;
@@ -43,13 +38,19 @@ export class ResponsesController {
         const instructionText = this.extractText(instructions);
 
         try {
-            const reasoningOptions = this.extractReasoningOptions(req.body);
-            if (reasoningOptions) {
-                this.logger.log(`Applying reasoning options: ${JSON.stringify(reasoningOptions)}`);
+            const preset = resolveModelPreset(requestedModel);
+            if (preset) {
+                this.logger.log(`Applying model preset "${preset.id}" targeting base ids: ${preset.baseModelIds.join(', ')}`);
+            }
+
+            const requestReasoning = this.extractReasoningOptions(req.body);
+            const mergedReasoning = this.mergeReasoningOptions(preset?.reasoning, requestReasoning);
+            if (mergedReasoning) {
+                this.logger.log(`Applying reasoning options: ${JSON.stringify(mergedReasoning)}`);
             }
 
             const normalizedMetadata = this.normalizeMetadata(requestMetadata);
-            const requestOptions = this.buildRequestOptions(reasoningOptions, req.body);
+            const requestOptions = this.buildRequestOptions(mergedReasoning, req.body);
             if (requestOptions?.modelOptions) {
                 this.logger.log(`Passing modelOptions to sendRequest: ${JSON.stringify(requestOptions.modelOptions)}`);
             }
@@ -61,7 +62,8 @@ export class ResponsesController {
             }
 
             const model = await this.modelManager.getModel(requestedModel);
-            const modelId = this.modelManager.getActiveModelIdentifier() || model.id || requestedModel || await this.modelManager.getModelId();
+            const resolvedModelId = this.modelManager.getActiveModelIdentifier() || model.id || requestedModel || await this.modelManager.getModelId();
+            const responseModelId = preset ? preset.id : resolvedModelId;
 
             const craftedPrompt = messages.map((msg: ChatMessage, index: number) =>
                 this.modelManager.createChatMessage(msg, index)
@@ -79,7 +81,14 @@ export class ResponsesController {
                 promptTokens += await this.modelManager.countTokens(model, msg.content);
             }
 
-            const responseMetadata = this.buildResponseMetadata(normalizedMetadata, reasoningOptions, requestOptions?.modelOptions);
+            const responseMetadata = this.buildResponseMetadata(
+                normalizedMetadata,
+                mergedReasoning,
+                requestOptions?.modelOptions,
+                preset,
+                resolvedModelId,
+                requestedModel
+            );
             if (responseMetadata) {
                 this.logger.log(`Response metadata prepared: ${JSON.stringify(responseMetadata)}`);
             }
@@ -88,7 +97,7 @@ export class ResponsesController {
                 const responseId = this.responseFormatter.generateResponseId();
                 const streamHandler = new ResponsesStreamHandler(
                     res,
-                    modelId,
+                    responseModelId,
                     responseId,
                     this.logger,
                     this.responseFormatter,
@@ -110,7 +119,7 @@ export class ResponsesController {
             const responseId = this.responseFormatter.generateResponseId();
             const payload = this.responseFormatter.createResponsesResponse(
                 responseId,
-                modelId,
+                responseModelId,
                 responseText,
                 promptTokens,
                 completionTokens,
@@ -283,6 +292,31 @@ export class ResponsesController {
         return Object.keys(result).length > 0 ? result : undefined;
     }
 
+    private mergeReasoningOptions(
+        preset: ReasoningOptions | undefined,
+        supplied: ReasoningOptions | undefined
+    ): ReasoningOptions | undefined {
+        if (!preset && !supplied) {
+            return undefined;
+        }
+
+        const merged: ReasoningOptions = { ...(preset ?? {}) };
+
+        if (supplied) {
+            if (supplied.effort !== undefined) {
+                merged.effort = supplied.effort;
+            }
+            if (supplied.summary !== undefined) {
+                merged.summary = supplied.summary;
+            }
+            if (supplied.budget_tokens !== undefined) {
+                merged.budget_tokens = supplied.budget_tokens;
+            }
+        }
+
+        return Object.keys(merged).length > 0 ? merged : undefined;
+    }
+
     private normalizeReasoningEffort(value: unknown): ReasoningOptions['effort'] | undefined {
         if (typeof value !== 'string') {
             return undefined;
@@ -358,9 +392,25 @@ export class ResponsesController {
     private buildResponseMetadata(
         requestMetadata: Record<string, unknown> | undefined,
         reasoning: ReasoningOptions | undefined,
-        modelOptions: { [name: string]: unknown } | undefined
+        modelOptions: { [name: string]: unknown } | undefined,
+        preset: ModelPreset | undefined,
+        resolvedModelId: string,
+        requestedModelId?: string
     ): Record<string, unknown> | null {
         const combined: Record<string, unknown> = { ...(requestMetadata ?? {}) };
+
+        combined.resolved_model_id = resolvedModelId;
+
+        if (requestedModelId && requestedModelId !== resolvedModelId) {
+            combined.requested_model_id = requestedModelId;
+        }
+
+        if (preset) {
+            combined.preset_model_id = preset.id;
+            if (preset.reasoning) {
+                combined.preset_reasoning = preset.reasoning;
+            }
+        }
 
         if (reasoning) {
             combined.requested_reasoning = reasoning;

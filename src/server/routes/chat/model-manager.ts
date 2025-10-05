@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { Logger } from '../../../utils/logger';
+import { resolveModelPreset } from '../shared/model-presets';
 
 export class ModelManager {
     private cachedModels = new Map<string, vscode.LanguageModelChat>();
@@ -12,10 +13,29 @@ export class ModelManager {
             throw new Error('Language model API not available. Please ensure the GitHub Copilot extension is installed and activated.');
         }
 
-        const targetId = preferredModelId?.trim() || await this.getModelId();
+        const preset = resolveModelPreset(preferredModelId);
+        const trimmedPreferredIds = preset
+            ? preset.baseModelIds.map(id => id.trim()).filter(id => id.length > 0)
+            : preferredModelId?.trim()
+                ? [preferredModelId.trim()]
+                : [];
 
-        if (targetId) {
-            const cached = this.cachedModels.get(targetId);
+        const defaultModelId = (await this.getModelId()).trim();
+        const cacheLookupIds = new Set<string>();
+
+        if (preferredModelId?.trim()) {
+            cacheLookupIds.add(preferredModelId.trim());
+        }
+        if (preset) {
+            cacheLookupIds.add(preset.id);
+        }
+        trimmedPreferredIds.forEach(id => cacheLookupIds.add(id));
+        if (defaultModelId.length > 0) {
+            cacheLookupIds.add(defaultModelId);
+        }
+
+        for (const id of cacheLookupIds) {
+            const cached = this.cachedModels.get(id);
             if (cached) {
                 this.lastSelectedModel = { id: cached.id, model: cached };
                 return cached;
@@ -24,18 +44,19 @@ export class ModelManager {
 
         const selectors: vscode.LanguageModelChatSelector[] = [];
 
-        if (preferredModelId?.trim()) {
-            const normalized = preferredModelId.trim();
-            selectors.push({ id: normalized });
-            selectors.push({ family: normalized });
+        for (const id of trimmedPreferredIds) {
+            selectors.push({ id });
+            selectors.push({ family: id });
         }
 
-        if (!preferredModelId && targetId) {
-            selectors.push({ id: targetId });
-            selectors.push({ family: targetId });
+        if (!trimmedPreferredIds.includes(defaultModelId) && defaultModelId.length > 0) {
+            selectors.push({ id: defaultModelId });
+            selectors.push({ family: defaultModelId });
         }
 
         selectors.push({});
+
+        const selectionPreferredId = trimmedPreferredIds[0] ?? preferredModelId?.trim();
 
         for (const selector of selectors) {
             try {
@@ -44,9 +65,24 @@ export class ModelManager {
                     continue;
                 }
 
-                const selected = this.selectModelFromList(models, preferredModelId, targetId);
+                const candidateId = (selector as { id?: string; family?: string }).id ?? (selector as { id?: string; family?: string }).family ?? selectionPreferredId;
+                const selected = this.selectModelFromList(models, candidateId, defaultModelId);
                 await this.ensureModelReady(selected);
                 this.cacheModel(selected);
+
+                if (preferredModelId?.trim()) {
+                    this.cachedModels.set(preferredModelId.trim(), selected);
+                }
+                if (preset) {
+                    for (const id of preset.baseModelIds) {
+                        const trimmed = id.trim();
+                        if (trimmed.length > 0) {
+                            this.cachedModels.set(trimmed, selected);
+                        }
+                    }
+                    this.cachedModels.set(preset.id, selected);
+                }
+
                 this.lastSelectedModel = { id: selected.id, model: selected };
                 this.logger.log(`Using language model ${selected.name} (${selected.id})`);
                 return selected;

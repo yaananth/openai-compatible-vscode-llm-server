@@ -5,6 +5,7 @@ import { ResponseFormatter } from './response-formatter';
 import { StreamHandler } from './stream-handler';
 import { ChatMessage } from '../../../config/types';
 import * as vscode from 'vscode';
+import { resolveModelPreset } from '../shared/model-presets';
 
 export class ChatController {
     private modelManager: ModelManager;
@@ -26,15 +27,27 @@ export class ChatController {
                 throw new Error('Messages must be an array');
             }
 
+            const preset = resolveModelPreset(requestedModel);
+            if (preset) {
+                this.logger.log(`Applying model preset "${preset.id}" targeting base ids: ${preset.baseModelIds.join(', ')}`);
+            }
+
+            const presetReasoning = preset?.reasoning;
+            if (presetReasoning) {
+                this.logger.log(`Applying reasoning options for chat completion: ${JSON.stringify(presetReasoning)}`);
+            }
+
             const model = await this.modelManager.getModel(requestedModel);
-            const modelId = this.modelManager.getActiveModelIdentifier() || model.id || requestedModel || await this.modelManager.getModelId();
+            const resolvedModelId = this.modelManager.getActiveModelIdentifier() || model.id || requestedModel || await this.modelManager.getModelId();
+            const responseModelId = preset ? preset.id : resolvedModelId;
 
             const craftedPrompt = messages.map((msg: ChatMessage, index: number) => 
                 this.modelManager.createChatMessage(msg, index)
             );
 
             const cancellationToken = new vscode.CancellationTokenSource().token;
-            const chatResponse = await model.sendRequest(craftedPrompt, {}, cancellationToken);
+            const requestOptions = presetReasoning ? { modelOptions: { reasoning: presetReasoning } } : undefined;
+            const chatResponse = await model.sendRequest(craftedPrompt, requestOptions, cancellationToken);
 
             if (!chatResponse) {
                 this.logger.log('No response received from language model');
@@ -47,9 +60,9 @@ export class ChatController {
             }
 
             if (stream) {
-                await this.handleStreamResponse(res, chatResponse, modelId, promptTokenValue, model);
+                await this.handleStreamResponse(res, chatResponse, responseModelId, promptTokenValue, model);
             } else {
-                await this.handleNonStreamResponse(res, chatResponse, modelId, promptTokenValue, model);
+                await this.handleNonStreamResponse(res, chatResponse, responseModelId, promptTokenValue, model);
             }
         } catch (error) {
             this.handleError(res, error);

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
+import { MODEL_PRESETS } from './shared/model-presets';
 
 function createRouter(logger: Logger): Router {
     const router = Router();
@@ -23,6 +24,7 @@ function createRouter(logger: Logger): Router {
                     family: string;
                     version: string;
                     max_input_tokens: number;
+                    [key: string]: unknown;
                 };
             }>();
 
@@ -66,6 +68,52 @@ function createRouter(logger: Logger): Router {
             if (modelMap.size === 0) {
                 logger.log('No models available from VSCode LLM API');
                 throw new Error('No models available');
+            }
+
+            for (const preset of MODEL_PRESETS) {
+                if (modelMap.has(preset.id)) {
+                    continue;
+                }
+
+                let baseEntry: {
+                    id: string;
+                    object: 'model';
+                    created: number;
+                    owned_by: string;
+                    metadata: {
+                        name: string;
+                        family: string;
+                        version: string;
+                        max_input_tokens: number;
+                        [key: string]: unknown;
+                    };
+                } | undefined;
+                let resolvedBaseId: string | undefined;
+
+                for (const candidate of preset.baseModelIds) {
+                    const entry = modelMap.get(candidate);
+                    if (entry) {
+                        baseEntry = entry;
+                        resolvedBaseId = entry.id;
+                        break;
+                    }
+                }
+
+                if (!baseEntry) {
+                    continue;
+                }
+
+                modelMap.set(preset.id, {
+                    ...baseEntry,
+                    id: preset.id,
+                    metadata: {
+                        ...baseEntry.metadata,
+                        name: preset.displayName,
+                        alias_for: resolvedBaseId ?? baseEntry.id,
+                        preset_reasoning: preset.reasoning ?? null,
+                        preset_description: preset.description
+                    }
+                });
             }
 
             const modelData = Array.from(modelMap.values()).sort((a, b) => a.id.localeCompare(b.id));
