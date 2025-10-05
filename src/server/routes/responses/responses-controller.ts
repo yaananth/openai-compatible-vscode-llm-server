@@ -84,17 +84,17 @@ export class ResponsesController {
         this.writeDebugLog(req);
 
         const body = (req.body ?? {}) as Record<string, unknown>;
-        const {
-            input,
-            model: requestedModel,
-            stream: streamRequest,
-            instructions,
-            previous_response_id: previousResponseId,
-            metadata: requestMetadata
-        } = body;
+        const input = body.input;
+        const requestedModel = typeof body.model === 'string' ? body.model : undefined;
+        const streamRequest = body.stream;
+        const instructions = body.instructions;
+        const previousResponseIdRaw = body['previous_response_id'];
+        const previousResponseId = typeof previousResponseIdRaw === 'string' ? previousResponseIdRaw : undefined;
+        const requestMetadata = body.metadata;
 
         const stream = this.shouldStream(streamRequest, req);
         this.logger.log(`Streaming enabled: ${stream}`);
+        this.logStreamDecision(req, streamRequest, stream);
 
         if (previousResponseId) {
             const error = new Error('previous_response_id is not supported yet.');
@@ -241,6 +241,24 @@ export class ResponsesController {
         }
 
         return false;
+    }
+
+    private logStreamDecision(req: Request, requestedStream: unknown, resolvedStream: boolean): void {
+        try {
+            const logDir = path.join(os.homedir(), '.factory');
+            const logPath = path.join(logDir, 'responses-debug.log');
+            const entry = [
+                `time=${new Date().toISOString()}`,
+                `requestedStream=${JSON.stringify(requestedStream)}`,
+                `resolvedStream=${resolvedStream}`,
+                `x-stainless-helper-method=${req.headers['x-stainless-helper-method'] ?? ''}`,
+                `accept=${req.headers['accept'] ?? ''}`,
+                `content-type=${req.headers['content-type'] ?? ''}`
+            ].join(' | ');
+            fs.appendFileSync(logPath, entry + '\n');
+        } catch (error) {
+            // Swallow logging errors to avoid affecting request handling
+        }
     }
 
     private writeDebugLog(req: Request): void {
