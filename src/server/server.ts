@@ -78,60 +78,44 @@ export class ServerManager {
         this.app.use('/v1/messages', responsesRouter(this.logger));
     }
 
-    public start(): boolean {
-        if (this.server) {
-            this.logger.log('Server start requested while already running; restarting existing instance.');
-            this.stop();
-        }
+    public async start(): Promise<boolean> {
+        await this.ensureServerStopped(false);
 
         const config = vscode.workspace.getConfiguration('openaiCompatibleServer');
         const port = config.get('port', 3775);
 
-        const attemptStart = () => {
-            try {
-                this.server = this.app.listen(port, () => {
-                    this.logger.log(`Server started on port ${port}`);
-                    vscode.window.showInformationMessage(`OpenAI compatible server running on http://localhost:${port}`);
-                    this.statusBar.update(true);
-                });
-
-                this.server.on('error', (error: NodeJS.ErrnoException) => {
-                    if (error.code === 'EADDRINUSE') {
-                        this.logger.log(`Port ${port} in use. Attempting automatic recovery.`);
-                        this.recoverPortConflict(port);
-                        return;
-                    }
-                    this.logger.log(`Server error: ${error.message}`);
-                    this.cleanupServerOnFailure(error);
-                });
-            } catch (error) {
-                const err = error as NodeJS.ErrnoException;
-                this.logger.log(`Server failed to start: ${err.message}`);
-                if (err.code === 'EADDRINUSE') {
-                    this.logger.log(`Port ${port} in use during initial start. Attempting automatic recovery.`);
-                    this.recoverPortConflict(port);
-                } else {
-                    this.cleanupServerOnFailure(err);
+        try {
+            await this.listen(port);
+            this.logger.log(`Server started on port ${port}`);
+            vscode.window.showInformationMessage(`OpenAI compatible server running on http://localhost:${port}`);
+            this.statusBar.update(true);
+            return true;
+        } catch (error) {
+            const err = error as NodeJS.ErrnoException;
+            if (err.code === 'EADDRINUSE') {
+                this.logger.log(`Port ${port} in use. Attempting automatic recovery.`);
+                const recovered = await this.recoverPortConflict(port);
+                if (recovered) {
+                    return await this.start();
                 }
             }
-        };
 
-        attemptStart();
-        return this.server !== undefined;
+            this.logger.log(`Server failed to start: ${err.message}`);
+            this.cleanupServerOnFailure(err);
+            return false;
+        }
     }
 
-    public stop(): boolean {
+    public async stop(): Promise<boolean> {
         if (!this.server) {
             this.logger.log('Server stop attempted while not running');
             vscode.window.showInformationMessage('Server is not running');
             return false;
         }
 
-        this.server.close();
-        this.server = undefined;
+        await this.ensureServerStopped(true);
         this.logger.log('Server stopped');
         vscode.window.showInformationMessage('OpenAI compatible server stopped');
-        this.statusBar.update(false);
         return true;
     }
 
@@ -144,46 +128,73 @@ export class ServerManager {
         return config.get('port', 3775);
     }
     private cleanupServerOnFailure(error: Error | NodeJS.ErrnoException): void {
-        if (this.server) {
-            try {
-                this.server.close();
-            } catch {
-                // ignore close errors
-            } finally {
-                this.server = undefined;
-            }
-        }
-
-        this.statusBar.update(false);
+        void this.ensureServerStopped(false);
         const message = error.message || 'Server failed to start';
         vscode.window.showErrorMessage(`OpenAI compatible server error: ${message}`);
     }
 
-    private recoverPortConflict(port: number): void {
-        this.forceStopExistingServer(port)
-            .then(() => {
-                this.logger.log(`Retrying server start on port ${port} after recovery.`);
-                this.start();
-            })
-            .catch(error => {
-                const err = error as Error;
-                this.logger.log(`Failed to recover from port conflict: ${err.message}`);
-                this.cleanupServerOnFailure(err);
-            });
+    private async recoverPortConflict(port: number): Promise<boolean> {
+        try {
+            return await this.forceStopExistingServer(port);
+        } catch (error) {
+            const err = error as Error;
+            this.logger.log(`Failed to recover from port conflict: ${err.message}`);
+            vscode.window.showErrorMessage(
+                `OpenAI compatible server could not start because port ${port} is in use by another process. ` +
+                'Close the other process or update the configured port, then try again.'
+            );
+            return false;
+        }
     }
 
-    private async forceStopExistingServer(port: number): Promise<void> {
+    private async ensureServerStopped(updateStatus: boolean): Promise<void> {
+        if (!this.server) {
+            if (updateStatus) {
+                this.statusBar.update(false);
+            }
+            return;
+        }
+
+        await new Promise<void>((resolve) => {
+            this.server?.close(() => resolve());
+        });
+
+        this.server = undefined;
+
+        if (updateStatus) {
+            this.statusBar.update(false);
+        }
+    }
+
+    private async listen(port: number): Promise<void> {
+        await new Promise<void>((resolve, reject) => {
+            try {
+                const server = this.app.listen(port, () => {
+                    resolve();
+                });
+
+                this.server = server;
+
+                server.once('error', reject);
+
+                server.on('error', (error: NodeJS.ErrnoException) => {
+                    if (error.code === 'EADDRINUSE') {
+                        // handled separately
+                        return;
+                    }
+                    this.logger.log(`Server runtime error: ${error.message}`);
+                    this.cleanupServerOnFailure(error);
+                });
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    private async forceStopExistingServer(port: number): Promise<boolean> {
         this.logger.log(`Attempting to free port ${port} by stopping lingering server instance.`);
 
-        if (this.server) {
-            try {
-                this.server.close();
-            } catch {
-                // ignore
-            } finally {
-                this.server = undefined;
-            }
-        }
+        await this.ensureServerStopped(false);
 
         try {
             await vscode.commands.executeCommand('openai-server.stopServer');
@@ -197,10 +208,10 @@ export class ServerManager {
         await new Promise<void>((resolve, reject) => {
             const tester = net.createServer()
                 .once('error', (err: NodeJS.ErrnoException) => {
-                    if (err.code === 'EADDRINUSE') {
-                        this.logger.log(`Port ${port} still in use after stop. Please ensure no other process is bound to this port.`);
-                    }
                     tester.close();
+                    if (err.code === 'EADDRINUSE') {
+                        this.logger.log(`Port ${port} is still in use.`);
+                    }
                     reject(err);
                 })
                 .once('listening', () => {
@@ -209,6 +220,8 @@ export class ServerManager {
                 })
                 .listen(port, '127.0.0.1');
         });
+
+        return true;
     }
 
 }

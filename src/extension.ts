@@ -14,11 +14,11 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register commands
     let startCommand = vscode.commands.registerCommand('openai-compatible-vscode-llm-server.start', () => {
-        serverManager.start();
+        void serverManager.start();
     });
 
     let stopCommand = vscode.commands.registerCommand('openai-compatible-vscode-llm-server.stop', () => {
-        serverManager.stop();
+        void serverManager.stop();
     });
 
     let statusCommand = vscode.commands.registerCommand('openai-compatible-vscode-llm-server.status', () => {
@@ -48,21 +48,19 @@ export function activate(context: vscode.ExtensionContext) {
     const autoStart = config.get('autoStart', false);
 
     if (autoStart) {
-        try {
-            serverManager.start();
-        } catch (err) {
+        serverManager.start().catch(err => {
             vscode.window.showErrorMessage('Failed to start server automatically: ' + err);
-        }
+        });
     }
 }
 
-export function deactivate() {
+export async function deactivate() {
     const logger = Logger.getInstance();
     const serverManager = ServerManager.getInstance();
     const statusBar = StatusBarManager.getInstance();
 
     if (serverManager.isRunning()) {
-        serverManager.stop();
+        await serverManager.stop();
         logger.log('Server stopped during extension deactivation');
     }
 
