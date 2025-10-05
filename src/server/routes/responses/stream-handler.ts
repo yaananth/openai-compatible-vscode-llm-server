@@ -40,7 +40,8 @@ export class ResponsesStreamHandler {
     async handleStream(
         chatResponse: vscode.LanguageModelChatResponse,
         promptTokens: number,
-        instructions: string | null
+        instructions: string | null,
+        metadata: Record<string, unknown> | null
     ): Promise<void> {
         this.logger.log('Starting responses streaming');
         let responseText = '';
@@ -68,7 +69,8 @@ export class ResponsesStreamHandler {
                 promptTokens,
                 completionTokens,
                 'completed',
-                instructions
+                instructions,
+                metadata
             );
 
             this.writeEvent('response.completed', finalPayload);

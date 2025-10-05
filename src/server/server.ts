@@ -87,11 +87,23 @@ export class ServerManager {
         const config = vscode.workspace.getConfiguration('openaiCompatibleServer');
         const port = config.get('port', 3775);
 
-        this.server = this.app.listen(port, () => {
-            this.logger.log(`Server started on port ${port}`);
-            vscode.window.showInformationMessage(`OpenAI compatible server running on http://localhost:${port}`);
-            this.statusBar.update(true);
-        });
+        try {
+            this.server = this.app.listen(port, () => {
+                this.logger.log(`Server started on port ${port}`);
+                vscode.window.showInformationMessage(`OpenAI compatible server running on http://localhost:${port}`);
+                this.statusBar.update(true);
+            });
+
+            this.server.on('error', (error: NodeJS.ErrnoException) => {
+                this.logger.log(`Server error: ${error.message}`);
+                this.cleanupServerOnFailure(error);
+            });
+        } catch (error) {
+            const err = error as Error;
+            this.logger.log(`Server failed to start: ${err.message}`);
+            this.cleanupServerOnFailure(err);
+            return false;
+        }
 
         return true;
     }
@@ -119,4 +131,20 @@ export class ServerManager {
         const config = vscode.workspace.getConfiguration('openaiCompatibleServer');
         return config.get('port', 3775);
     }
+    private cleanupServerOnFailure(error: Error | NodeJS.ErrnoException): void {
+        if (this.server) {
+            try {
+                this.server.close();
+            } catch {
+                // ignore close errors
+            } finally {
+                this.server = undefined;
+            }
+        }
+
+        this.statusBar.update(false);
+        const message = error.message || 'Server failed to start';
+        vscode.window.showErrorMessage(`OpenAI compatible server error: ${message}`);
+    }
+
 }

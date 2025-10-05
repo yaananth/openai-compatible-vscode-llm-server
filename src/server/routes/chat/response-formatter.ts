@@ -70,7 +70,8 @@ export class ResponseFormatter {
         promptTokens: number,
         completionTokens: number,
         status: ResponseStatus = 'completed',
-        instructions: string | null = null
+        instructions: string | null = null,
+        metadata: Record<string, unknown> | null = null
     ): ResponsesResponse {
         const output: ResponseOutputItem = {
             id: `${responseId}-msg-0`,
@@ -99,7 +100,7 @@ export class ResponseFormatter {
                 total_tokens: promptTokens + completionTokens
             },
             instructions,
-            metadata: null
+            metadata
         };
     }
 

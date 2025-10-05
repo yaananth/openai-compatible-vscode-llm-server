@@ -6,6 +6,12 @@ import { ResponseFormatter } from '../chat/response-formatter';
 import { ChatMessage } from '../../../config/types';
 import { ResponsesStreamHandler } from './stream-handler';
 
+type ReasoningOptions = {
+    effort?: 'low' | 'medium' | 'high' | 'default';
+    summary?: 'off' | 'detailed' | 'default';
+    budget_tokens?: number;
+};
+
 export class ResponsesController {
     private modelManager: ModelManager;
     private responseFormatter: ResponseFormatter;
@@ -19,7 +25,14 @@ export class ResponsesController {
         this.logger.log('Responses API request received');
         this.logger.log(`Request body: ${JSON.stringify(req.body, null, 2)}`);
 
-        const { input, model: requestedModel, stream = false, instructions, previous_response_id: previousResponseId } = req.body;
+        const {
+            input,
+            model: requestedModel,
+            stream = false,
+            instructions,
+            previous_response_id: previousResponseId,
+            metadata: requestMetadata
+        } = req.body;
 
         if (previousResponseId) {
             const error = new Error('previous_response_id is not supported yet.');
@@ -30,6 +43,17 @@ export class ResponsesController {
         const instructionText = this.extractText(instructions);
 
         try {
+            const reasoningOptions = this.extractReasoningOptions(req.body);
+            if (reasoningOptions) {
+                this.logger.log(`Applying reasoning options: ${JSON.stringify(reasoningOptions)}`);
+            }
+
+            const normalizedMetadata = this.normalizeMetadata(requestMetadata);
+            const requestOptions = this.buildRequestOptions(reasoningOptions, req.body);
+            if (requestOptions?.modelOptions) {
+                this.logger.log(`Passing modelOptions to sendRequest: ${JSON.stringify(requestOptions.modelOptions)}`);
+            }
+
             const messages = this.buildMessages(input, instructionText, req.body.messages);
 
             if (messages.length === 0) {
@@ -44,7 +68,7 @@ export class ResponsesController {
             );
 
             const cancellationTokenSource = new vscode.CancellationTokenSource();
-            const chatResponse = await model.sendRequest(craftedPrompt, {}, cancellationTokenSource.token);
+            const chatResponse = await model.sendRequest(craftedPrompt, requestOptions, cancellationTokenSource.token);
 
             if (!chatResponse) {
                 throw new Error('No response from language model');
@@ -53,6 +77,11 @@ export class ResponsesController {
             let promptTokens = 0;
             for (const msg of messages) {
                 promptTokens += await this.modelManager.countTokens(model, msg.content);
+            }
+
+            const responseMetadata = this.buildResponseMetadata(normalizedMetadata, reasoningOptions, requestOptions?.modelOptions);
+            if (responseMetadata) {
+                this.logger.log(`Response metadata prepared: ${JSON.stringify(responseMetadata)}`);
             }
 
             if (stream) {
@@ -68,7 +97,7 @@ export class ResponsesController {
                 );
 
                 streamHandler.initializeStream();
-                await streamHandler.handleStream(chatResponse, promptTokens, instructionText || null);
+                await streamHandler.handleStream(chatResponse, promptTokens, instructionText || null, responseMetadata);
                 return;
             }
 
@@ -86,7 +115,8 @@ export class ResponsesController {
                 promptTokens,
                 completionTokens,
                 'completed',
-                instructionText || null
+                instructionText || null,
+                responseMetadata
             );
 
             res.json(payload);
@@ -198,6 +228,153 @@ export class ResponsesController {
             default:
                 return 'user';
         }
+    }
+
+    private extractReasoningOptions(rawBody: unknown): ReasoningOptions | undefined {
+        if (!this.isPlainObject(rawBody)) {
+            return undefined;
+        }
+
+        const result: ReasoningOptions = {};
+        const body = rawBody as Record<string, unknown>;
+        const reasoning = body['reasoning'];
+
+        if (this.isPlainObject(reasoning)) {
+            const reasoningRecord = reasoning as Record<string, unknown>;
+            const effort = this.normalizeReasoningEffort(reasoningRecord['effort']);
+            if (effort) {
+                result.effort = effort;
+            }
+
+            const summary = this.normalizeReasoningSummary(reasoningRecord['summary']);
+            if (summary) {
+                result.summary = summary;
+            }
+
+            const budget = this.normalizeReasoningBudget(
+                reasoningRecord['budget_tokens'] ?? reasoningRecord['budgetTokens']
+            );
+            if (budget !== undefined) {
+                result.budget_tokens = budget;
+            }
+        }
+
+        const fallbackEffort = this.normalizeReasoningEffort(
+            body['reasoning_effort'] ?? body['reasoningEffort']
+        );
+        if (fallbackEffort && result.effort === undefined) {
+            result.effort = fallbackEffort;
+        }
+
+        const fallbackSummary = this.normalizeReasoningSummary(
+            body['reasoning_summary'] ?? body['reasoningSummary']
+        );
+        if (fallbackSummary && result.summary === undefined) {
+            result.summary = fallbackSummary;
+        }
+
+        const fallbackBudget = this.normalizeReasoningBudget(
+            body['reasoning_budget_tokens'] ?? body['reasoningBudgetTokens']
+        );
+        if (fallbackBudget !== undefined && result.budget_tokens === undefined) {
+            result.budget_tokens = fallbackBudget;
+        }
+
+        return Object.keys(result).length > 0 ? result : undefined;
+    }
+
+    private normalizeReasoningEffort(value: unknown): ReasoningOptions['effort'] | undefined {
+        if (typeof value !== 'string') {
+            return undefined;
+        }
+
+        const normalized = value.toLowerCase();
+        const allowed: ReasoningOptions['effort'][] = ['low', 'medium', 'high', 'default'];
+        return allowed.includes(normalized as ReasoningOptions['effort'])
+            ? (normalized as ReasoningOptions['effort'])
+            : undefined;
+    }
+
+    private normalizeReasoningSummary(value: unknown): ReasoningOptions['summary'] | undefined {
+        if (typeof value !== 'string') {
+            return undefined;
+        }
+
+        const normalized = value.toLowerCase();
+        const allowed: ReasoningOptions['summary'][] = ['off', 'detailed', 'default'];
+        return allowed.includes(normalized as ReasoningOptions['summary'])
+            ? (normalized as ReasoningOptions['summary'])
+            : undefined;
+    }
+
+    private normalizeReasoningBudget(value: unknown): number | undefined {
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+            return undefined;
+        }
+
+        return Math.floor(value);
+    }
+
+    private buildRequestOptions(
+        reasoning: ReasoningOptions | undefined,
+        rawBody: unknown
+    ): vscode.LanguageModelChatRequestOptions | undefined {
+        const options: vscode.LanguageModelChatRequestOptions = {};
+
+        if (reasoning) {
+            options.modelOptions = { reasoning };
+        }
+
+        const justification = this.extractJustification(rawBody);
+        if (justification) {
+            options.justification = justification;
+        }
+
+        return Object.keys(options).length > 0 ? options : undefined;
+    }
+
+    private extractJustification(rawBody: unknown): string | undefined {
+        if (!this.isPlainObject(rawBody)) {
+            return undefined;
+        }
+
+        const value = (rawBody as Record<string, unknown>)['justification'];
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            return trimmed.length > 0 ? trimmed : undefined;
+        }
+
+        return undefined;
+    }
+
+    private normalizeMetadata(metadata: unknown): Record<string, unknown> | undefined {
+        if (!this.isPlainObject(metadata)) {
+            return undefined;
+        }
+
+        return { ...(metadata as Record<string, unknown>) };
+    }
+
+    private buildResponseMetadata(
+        requestMetadata: Record<string, unknown> | undefined,
+        reasoning: ReasoningOptions | undefined,
+        modelOptions: { [name: string]: unknown } | undefined
+    ): Record<string, unknown> | null {
+        const combined: Record<string, unknown> = { ...(requestMetadata ?? {}) };
+
+        if (reasoning) {
+            combined.requested_reasoning = reasoning;
+        }
+
+        if (modelOptions && Object.keys(modelOptions).length > 0) {
+            combined.applied_model_options = modelOptions;
+        }
+
+        return Object.keys(combined).length > 0 ? combined : null;
+    }
+
+    private isPlainObject(value: unknown): value is Record<string, unknown> {
+        return typeof value === 'object' && value !== null && !Array.isArray(value);
     }
 
     private handleError(res: Response, error: unknown): void {
