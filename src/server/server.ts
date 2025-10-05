@@ -75,6 +75,7 @@ export class ServerManager {
         this.app.use('/v1/models', modelsRouter(this.logger));
         this.app.use('/v1/chat', chatRouter(this.logger));
         this.app.use('/v1/responses', responsesRouter(this.logger));
+        this.app.use('/v1/messages', responsesRouter(this.logger));
     }
 
     public start(): boolean {
