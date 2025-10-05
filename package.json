@@ -108,7 +108,8 @@
     "package:vsix": "npx @vscode/vsce package --no-dependencies --out .vsix/openai-compatible-vscode-llm-server.vsix",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "test:unit": "mocha -r ts-node/register test/**/*.test.ts"
   },
   "devDependencies": {
     "@types/body-parser": "^1.19.6",
@@ -121,6 +122,9 @@
     "@vscode/test-electron": "^2.4.1",
     "@vscode/vsce": "^3.1.1",
     "eslint": "^9.19.0",
+    "mocha": "^11.1.0",
+    "mock-require": "^3.0.3",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   },
   "dependencies": {

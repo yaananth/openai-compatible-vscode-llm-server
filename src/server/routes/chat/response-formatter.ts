@@ -2,6 +2,72 @@ import { ChatCompletionResponse, StreamChunk, ErrorResponse } from './types';
 import { ResponsesResponse, ResponseOutputItem, ResponseStatus } from '../responses/types';
 
 export class ResponseFormatter {
+    private generateMessageId(): string {
+        return `msg_${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
+    }
+
+    createResponseEnvelope(
+        responseId: string,
+        modelId: string,
+        status: 'in_progress' | 'completed' | 'failed' | 'incomplete',
+        promptTokens: number,
+        completionTokens: number,
+        instructions?: string | null,
+        metadata?: Record<string, unknown> | null,
+        options?: {
+            createdAt?: number;
+            outputText?: string;
+            outputId?: string;
+            includeOutput?: boolean;
+        }
+    ): Record<string, unknown> {
+        const createdAt = options?.createdAt ?? Math.floor(Date.now() / 1000);
+        const outputText = options?.outputText ?? '';
+        const includeOutput = options?.includeOutput ?? true;
+        const outputId = options?.outputId ?? this.generateMessageId();
+
+        const response: Record<string, unknown> = {
+            id: responseId,
+            object: 'response',
+            created_at: createdAt,
+            status,
+            background: false,
+            error: null,
+            incomplete_details: null,
+            model: modelId,
+            output: includeOutput
+                ? [
+                    {
+                        id: outputId,
+                        type: 'message',
+                        role: 'assistant',
+                        content: [
+                            {
+                                type: 'output_text',
+                                text: outputText,
+                                annotations: []
+                            }
+                        ]
+                    }
+                ]
+                : [],
+            output_text: includeOutput ? outputText : '',
+            usage: includeOutput
+                ? {
+                    input_tokens: promptTokens,
+                    output_tokens: completionTokens,
+                    total_tokens: promptTokens + completionTokens
+                }
+                : null,
+            user: null,
+            metadata: metadata ?? {}
+        };
+
+        response.instructions = instructions ?? '';
+
+        return response;
+    }
+
     createChatCompletionResponse(
         modelId: string,
         responseText: string,
@@ -71,37 +137,26 @@ export class ResponseFormatter {
         completionTokens: number,
         status: ResponseStatus = 'completed',
         instructions: string | null = null,
-        metadata: Record<string, unknown> | null = null
+        metadata: Record<string, unknown> | null = null,
+        options?: { createdAt?: number; outputId?: string }
     ): ResponsesResponse {
-        const output: ResponseOutputItem = {
-            id: `${responseId}-msg-0`,
-            type: 'message',
-            role: 'assistant',
-            content: [
-                {
-                    type: 'output_text',
-                    text: responseText,
-                    annotations: []
-                }
-            ]
-        };
-
-        return {
-            id: responseId,
-            object: 'response',
-            created_at: Math.floor(Date.now() / 1000),
-            model: modelId,
+        const response = this.createResponseEnvelope(
+            responseId,
+            modelId,
             status,
-            output: [output],
-            output_text: responseText,
-            usage: {
-                input_tokens: promptTokens,
-                output_tokens: completionTokens,
-                total_tokens: promptTokens + completionTokens
-            },
+            promptTokens,
+            completionTokens,
             instructions,
-            metadata
-        };
+            metadata,
+            {
+                createdAt: options?.createdAt,
+                outputText: responseText,
+                outputId: options?.outputId,
+                includeOutput: true
+            }
+        ) as unknown as ResponsesResponse;
+
+        return response;
     }
 
     createErrorResponse(error: unknown): ErrorResponse {

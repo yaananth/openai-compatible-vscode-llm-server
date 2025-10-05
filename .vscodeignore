@@ -12,3 +12,4 @@ vsc-extension-quickstart.md
 .dev-workspace/**
 server.log
 scripts/serve-llm-extension.sh
+test/**
