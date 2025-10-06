@@ -21,6 +21,8 @@ export class ResponseFormatter {
             includeOutput?: boolean;
             outputItems?: Array<Record<string, unknown>>;
             parallelToolCalls?: boolean;
+            toolChoice?: string | Record<string, unknown> | null;
+            tools?: Array<Record<string, unknown>>;
         }
     ): Record<string, unknown> {
         const createdAt = options?.createdAt ?? Math.floor(Date.now() / 1000);
@@ -31,6 +33,16 @@ export class ResponseFormatter {
         const outputItems = options?.outputItems;
 
         const parallelToolCalls = options?.parallelToolCalls ?? true;
+        const toolChoice = options?.toolChoice ?? 'none';
+        const tools = Array.isArray(options?.tools) ? options?.tools ?? [] : [];
+
+        const responseTextConfig = {
+            value: includeOutput ? outputText : '',
+            annotations: [] as unknown[],
+            format: {
+                type: 'text'
+            }
+        };
 
         const response: Record<string, unknown> = {
             id: responseId,
@@ -42,6 +54,8 @@ export class ResponseFormatter {
             incomplete_details: null,
             model: modelId,
             parallel_tool_calls: parallelToolCalls,
+            tool_choice: toolChoice,
+            tools,
             output: includeOutput
                 ? [
                     {
@@ -59,6 +73,7 @@ export class ResponseFormatter {
                 ]
                 : [],
             output_text: includeOutput ? outputText : '',
+            text: responseTextConfig,
             usage: includeOutput
                 ? {
                     input_tokens: promptTokens,
@@ -67,8 +82,7 @@ export class ResponseFormatter {
                 }
                 : null,
             user: null,
-            metadata: metadata ?? {},
-            text: includeOutput ? outputText : ''
+            metadata: metadata ?? {}
         };
 
         response.instructions = instructions ?? '';
@@ -80,7 +94,13 @@ export class ResponseFormatter {
                 if (messageItem) {
                     const text = (messageItem as { content?: Array<{ text?: string }> }).content?.[0]?.text ?? '';
                     response.output_text = text;
-                    response.text = text;
+                    response.text = {
+                        value: text,
+                        annotations: [] as unknown[],
+                        format: {
+                            type: 'text'
+                        }
+                    };
                 }
             }
         }
@@ -163,6 +183,8 @@ export class ResponseFormatter {
             outputId?: string;
             outputItems?: Array<Record<string, unknown>>;
             parallelToolCalls?: boolean;
+            toolChoice?: string | Record<string, unknown> | null;
+            tools?: Array<Record<string, unknown>>;
         }
     ): ResponsesResponse {
         const response = this.createResponseEnvelope(
@@ -179,7 +201,9 @@ export class ResponseFormatter {
                 outputId: options?.outputId,
                 includeOutput: true,
                 outputItems: options?.outputItems,
-                parallelToolCalls: options?.parallelToolCalls
+                parallelToolCalls: options?.parallelToolCalls,
+                toolChoice: options?.toolChoice,
+                tools: options?.tools
             }
         ) as unknown as ResponsesResponse;
 

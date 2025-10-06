@@ -35,7 +35,9 @@ describe('ResponsesStreamHandler', () => {
             logger,
             formatter,
             {} as any,
-            modelManager as any
+            modelManager as any,
+            true,
+            'auto'
         );
 
         handler.initializeStream();
@@ -49,7 +51,7 @@ describe('ResponsesStreamHandler', () => {
             })()
         } as any;
 
-        await handler.handleStream(chatResponse, 10, 'system instructions', { meta: true });
+        await handler.handleStream(chatResponse, 10, 'system instructions', { meta: 'true' });
 
         assert.equal(headers['Content-Type'], 'text/event-stream; charset=utf-8');
         assert(ended, 'response should end');
@@ -85,7 +87,9 @@ describe('ResponsesStreamHandler', () => {
 
         const createdPayload = JSON.parse(events[0].dataLine);
         assert.equal(createdPayload.response.instructions, 'system instructions');
-        assert.deepEqual(createdPayload.response.metadata, { meta: true });
+        assert.deepEqual(createdPayload.response.metadata, { meta: 'true' });
+        assert.equal(createdPayload.response.tool_choice, 'auto');
+        assert.deepEqual(createdPayload.response.tools, []);
 
         const deltaPayload = JSON.parse(events[6].dataLine);
         assert.equal(deltaPayload.delta, 'Hello');
@@ -98,6 +102,8 @@ describe('ResponsesStreamHandler', () => {
 
         const completedPayload = JSON.parse(events[11].dataLine);
         assert.equal(completedPayload.response.status, 'completed');
+        assert.equal(completedPayload.response.tool_choice, 'auto');
+        assert.deepEqual(completedPayload.response.tools, []);
         assert.equal(completedPayload.response.output_text, 'Hello.');
         assert.equal(completedPayload.response.usage.total_tokens, 'Hello.'.length + 10);
     });

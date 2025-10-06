@@ -25,10 +25,12 @@ export interface ResponsesResponse {
     created_at: number;
     model: string;
     parallel_tool_calls: boolean;
+    tool_choice: string | Record<string, unknown> | null;
+    tools: Array<Record<string, unknown>>;
     status: ResponseStatus;
     output: ResponseOutputItem[];
     output_text: string;
-    text: string;
+    text: { value: string; annotations: unknown[]; format: { type: string } };
     usage: ResponseUsage;
     instructions: string | null;
     metadata: Record<string, unknown> | null;

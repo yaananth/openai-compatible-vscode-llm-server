@@ -93,6 +93,8 @@ export class ResponsesController {
         const requestMetadata = body.metadata;
         const requestedParallelToolCalls = this.normalizeParallelToolCalls(body.parallel_tool_calls);
         const effectiveParallelToolCalls = requestedParallelToolCalls ?? true;
+        const normalizedTools = this.normalizeTools(body.tools);
+        const effectiveToolChoice = this.normalizeToolChoice(body.tool_choice, normalizedTools);
 
         const stream = this.shouldStream(streamRequest, req);
         this.logger.log(`Streaming enabled: ${stream}`);
@@ -167,26 +169,28 @@ export class ResponsesController {
 
             if (stream) {
                 const responseId = this.responseFormatter.generateResponseId();
-            const streamHandler = new ResponsesStreamHandler(
-                res,
-                responseModelId,
-                responseId,
-                this.logger,
-                this.responseFormatter,
-                model,
-                this.modelManager,
-                effectiveParallelToolCalls
-            );
+                const streamHandler = new ResponsesStreamHandler(
+                    res,
+                    responseModelId,
+                    responseId,
+                    this.logger,
+                    this.responseFormatter,
+                    model,
+                    this.modelManager,
+                    effectiveParallelToolCalls,
+                    effectiveToolChoice,
+                    normalizedTools
+                );
 
-            streamHandler.initializeStream();
-            await streamHandler.handleStream(
-                chatResponse,
-                promptTokens,
-                effectiveInstructions,
-                responseMetadata
-            );
-            return;
-        }
+                streamHandler.initializeStream();
+                await streamHandler.handleStream(
+                    chatResponse,
+                    promptTokens,
+                    effectiveInstructions,
+                    responseMetadata
+                );
+                return;
+            }
 
             let responseText = '';
             for await (const fragment of chatResponse.text) {
@@ -204,7 +208,11 @@ export class ResponsesController {
                 'completed',
                 effectiveInstructions,
                 responseMetadata,
-                { parallelToolCalls: effectiveParallelToolCalls }
+                {
+                    parallelToolCalls: effectiveParallelToolCalls,
+                    toolChoice: effectiveToolChoice,
+                    tools: normalizedTools
+                }
             );
 
             res.json(payload);
@@ -553,6 +561,54 @@ export class ResponsesController {
         return undefined;
     }
 
+    private normalizeToolChoice(
+        toolChoice: unknown,
+        toolsField: Array<Record<string, unknown>>
+    ): string | Record<string, unknown> | null {
+        if (toolChoice === null) {
+            return null;
+        }
+
+        if (typeof toolChoice === 'string') {
+            const normalized = toolChoice.toLowerCase();
+            if (['auto', 'none', 'required'].includes(normalized)) {
+                return normalized;
+            }
+        }
+
+        if (this.isPlainObject(toolChoice)) {
+            const choiceRecord = toolChoice as Record<string, unknown>;
+            const type = typeof choiceRecord.type === 'string' ? choiceRecord.type : undefined;
+            if (type === 'tool') {
+                const name = choiceRecord.name;
+                if (typeof name === 'string' && name.trim().length > 0) {
+                    return { type: 'tool', name: name.trim() };
+                }
+            }
+            return { ...choiceRecord };
+        }
+
+        if (toolsField.length > 0) {
+            return 'auto';
+        }
+
+        return 'none';
+    }
+
+    private normalizeTools(rawTools: unknown): Array<Record<string, unknown>> {
+        if (!Array.isArray(rawTools)) {
+            return [];
+        }
+
+        const tools: Array<Record<string, unknown>> = [];
+        for (const tool of rawTools) {
+            if (this.isPlainObject(tool)) {
+                tools.push({ ...(tool as Record<string, unknown>) });
+            }
+        }
+        return tools;
+    }
+
     private buildRequestOptions(
         reasoning: ReasoningOptions | undefined,
         rawBody: unknown
@@ -601,30 +657,62 @@ export class ResponsesController {
         resolvedModelId: string,
         requestedModelId?: string
     ): Record<string, unknown> | null {
-        const combined: Record<string, unknown> = { ...(requestMetadata ?? {}) };
+        const combined: Record<string, string> = {};
+        const source = { ...(requestMetadata ?? {}) } as Record<string, unknown>;
 
-        combined.resolved_model_id = resolvedModelId;
+        const appendEntry = (key: string, value: unknown) => {
+            if (value === undefined || value === null) {
+                return;
+            }
+            combined[key] = this.stringifyMetadataValue(value);
+        };
+
+        for (const [key, value] of Object.entries(source)) {
+            appendEntry(key, value);
+        }
+
+        appendEntry('resolved_model_id', resolvedModelId);
 
         if (requestedModelId && requestedModelId !== resolvedModelId) {
-            combined.requested_model_id = requestedModelId;
+            appendEntry('requested_model_id', requestedModelId);
         }
 
         if (preset) {
-            combined.preset_model_id = preset.id;
+            appendEntry('preset_model_id', preset.id);
             if (preset.reasoning) {
-                combined.preset_reasoning = preset.reasoning;
+                appendEntry('preset_reasoning', preset.reasoning);
             }
         }
 
         if (reasoning) {
-            combined.requested_reasoning = reasoning;
+            appendEntry('requested_reasoning', reasoning);
         }
 
         if (modelOptions && Object.keys(modelOptions).length > 0) {
-            combined.applied_model_options = modelOptions;
+            appendEntry('applied_model_options', modelOptions);
         }
 
         return Object.keys(combined).length > 0 ? combined : null;
+    }
+
+    private stringifyMetadataValue(value: unknown): string {
+        if (value === undefined || value === null) {
+            return '';
+        }
+
+        if (typeof value === 'string') {
+            return value;
+        }
+
+        if (typeof value === 'number' || typeof value === 'boolean') {
+            return String(value);
+        }
+
+        try {
+            return JSON.stringify(value);
+        } catch {
+            return String(value);
+        }
     }
 
     private isPlainObject(value: unknown): value is Record<string, unknown> {

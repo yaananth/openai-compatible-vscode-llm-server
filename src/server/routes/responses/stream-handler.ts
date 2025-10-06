@@ -18,7 +18,9 @@ export class ResponsesStreamHandler {
         private responseFormatter: ResponseFormatter,
         private model: vscode.LanguageModelChat,
         private modelManager: ModelManager,
-        private readonly parallelToolCalls: boolean
+        private readonly parallelToolCalls: boolean,
+        private readonly toolChoice: string | Record<string, unknown> | null,
+        private readonly tools: Array<Record<string, unknown>>
     ) {}
 
     initializeStream(): void {
@@ -82,7 +84,9 @@ export class ResponsesStreamHandler {
                     outputText: '',
                     outputId: this.messageItemId,
                     includeOutput: false,
-                    parallelToolCalls: this.parallelToolCalls
+                    parallelToolCalls: this.parallelToolCalls,
+                    toolChoice: this.toolChoice,
+                    tools: this.tools
                 }
             );
 
@@ -231,7 +235,9 @@ export class ResponsesStreamHandler {
                     outputId: this.messageItemId,
                     includeOutput: true,
                     outputItems: [reasoningCompletedItem, messageCompletedItem],
-                    parallelToolCalls: this.parallelToolCalls
+                    parallelToolCalls: this.parallelToolCalls,
+                    toolChoice: this.toolChoice,
+                    tools: this.tools
                 }
             );
 
