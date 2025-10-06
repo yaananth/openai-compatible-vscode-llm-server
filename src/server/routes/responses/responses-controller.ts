@@ -91,6 +91,8 @@ export class ResponsesController {
         const previousResponseIdRaw = body['previous_response_id'];
         const previousResponseId = typeof previousResponseIdRaw === 'string' ? previousResponseIdRaw : undefined;
         const requestMetadata = body.metadata;
+        const requestedParallelToolCalls = this.normalizeParallelToolCalls(body.parallel_tool_calls);
+        const effectiveParallelToolCalls = requestedParallelToolCalls ?? true;
 
         const stream = this.shouldStream(streamRequest, req);
         this.logger.log(`Streaming enabled: ${stream}`);
@@ -172,11 +174,17 @@ export class ResponsesController {
                 this.logger,
                 this.responseFormatter,
                 model,
-                this.modelManager
+                this.modelManager,
+                effectiveParallelToolCalls
             );
 
             streamHandler.initializeStream();
-            await streamHandler.handleStream(chatResponse, promptTokens, effectiveInstructions, responseMetadata);
+            await streamHandler.handleStream(
+                chatResponse,
+                promptTokens,
+                effectiveInstructions,
+                responseMetadata
+            );
             return;
         }
 
@@ -195,7 +203,8 @@ export class ResponsesController {
                 completionTokens,
                 'completed',
                 effectiveInstructions,
-                responseMetadata
+                responseMetadata,
+                { parallelToolCalls: effectiveParallelToolCalls }
             );
 
             res.json(payload);
@@ -524,6 +533,24 @@ export class ResponsesController {
         }
 
         return Math.floor(value);
+    }
+
+    private normalizeParallelToolCalls(value: unknown): boolean | undefined {
+        if (typeof value === 'boolean') {
+            return value;
+        }
+
+        if (typeof value === 'string') {
+            const normalized = value.toLowerCase();
+            if (['true', '1', 'yes', 'on', 'enable', 'enabled'].includes(normalized)) {
+                return true;
+            }
+            if (['false', '0', 'no', 'off', 'disable', 'disabled'].includes(normalized)) {
+                return false;
+            }
+        }
+
+        return undefined;
     }
 
     private buildRequestOptions(

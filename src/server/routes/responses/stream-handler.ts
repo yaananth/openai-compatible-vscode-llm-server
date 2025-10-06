@@ -17,7 +17,8 @@ export class ResponsesStreamHandler {
         private logger: Logger,
         private responseFormatter: ResponseFormatter,
         private model: vscode.LanguageModelChat,
-        private modelManager: ModelManager
+        private modelManager: ModelManager,
+        private readonly parallelToolCalls: boolean
     ) {}
 
     initializeStream(): void {
@@ -80,7 +81,8 @@ export class ResponsesStreamHandler {
                     createdAt: this.createdAt,
                     outputText: '',
                     outputId: this.messageItemId,
-                    includeOutput: false
+                    includeOutput: false,
+                    parallelToolCalls: this.parallelToolCalls
                 }
             );
 
@@ -228,7 +230,8 @@ export class ResponsesStreamHandler {
                     outputText: responseText,
                     outputId: this.messageItemId,
                     includeOutput: true,
-                    outputItems: [reasoningCompletedItem, messageCompletedItem]
+                    outputItems: [reasoningCompletedItem, messageCompletedItem],
+                    parallelToolCalls: this.parallelToolCalls
                 }
             );
 

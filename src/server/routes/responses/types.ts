@@ -24,9 +24,11 @@ export interface ResponsesResponse {
     object: 'response';
     created_at: number;
     model: string;
+    parallel_tool_calls: boolean;
     status: ResponseStatus;
     output: ResponseOutputItem[];
     output_text: string;
+    text: string;
     usage: ResponseUsage;
     instructions: string | null;
     metadata: Record<string, unknown> | null;

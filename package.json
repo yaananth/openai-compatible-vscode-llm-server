@@ -26,7 +26,11 @@
     "language model"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onCommand:openai-compatible-vscode-llm-server.start",
+    "onCommand:openai-compatible-vscode-llm-server.stop",
+    "onCommand:openai-compatible-vscode-llm-server.status",
+    "onCommand:openai-compatible-vscode-llm-server.viewLogs"
   ],
   "main": "./out/extension.js",
   "contributes": {

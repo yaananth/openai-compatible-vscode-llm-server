@@ -72,8 +72,45 @@ export class ServerManager {
     }
 
     private setupRoutes(): void {
+        // Base endpoint for health checks and API info
+        this.app.get('/v1', (req: express.Request, res: express.Response) => {
+            res.json({
+                object: 'api.info',
+                version: '1.0',
+                description: 'OpenAI compatible API server for VSCode LLM',
+                endpoints: ['/v1/models', '/v1/chat/completions', '/v1/completions', '/v1/responses', '/v1/messages']
+            });
+        });
+
+        // Set up chat router first
+        const chatRouterInstance = chatRouter(this.logger);
+        
+        // Legacy completions endpoint - convert to chat format and forward to chat router
+        this.app.post('/v1/completions', (req: express.Request, res: express.Response, next: express.NextFunction) => {
+            this.logger.log('Legacy completions endpoint called, converting to chat format');
+            const { prompt, ...otherParams } = req.body;
+            
+            // Convert prompt to messages array
+            if (prompt) {
+                const messages = typeof prompt === 'string' 
+                    ? [{ role: 'user', content: prompt }]
+                    : Array.isArray(prompt)
+                        ? [{ role: 'user', content: prompt.join('\n') }]
+                        : [{ role: 'user', content: String(prompt) }];
+                
+                req.body = {
+                    ...otherParams,
+                    messages
+                };
+            }
+            
+            // Forward to chat router by calling it with modified path
+            req.url = '/completions';
+            chatRouterInstance(req, res, next);
+        });
+
         this.app.use('/v1/models', modelsRouter(this.logger));
-        this.app.use('/v1/chat', chatRouter(this.logger));
+        this.app.use('/v1/chat', chatRouterInstance);
         this.app.use('/v1/responses', responsesRouter(this.logger));
         this.app.use('/v1/messages', responsesRouter(this.logger));
     }

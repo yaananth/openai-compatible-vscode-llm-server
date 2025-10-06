@@ -20,6 +20,7 @@ export class ResponseFormatter {
             outputId?: string;
             includeOutput?: boolean;
             outputItems?: Array<Record<string, unknown>>;
+            parallelToolCalls?: boolean;
         }
     ): Record<string, unknown> {
         const createdAt = options?.createdAt ?? Math.floor(Date.now() / 1000);
@@ -28,6 +29,8 @@ export class ResponseFormatter {
         const outputId = options?.outputId ?? this.generateMessageId();
 
         const outputItems = options?.outputItems;
+
+        const parallelToolCalls = options?.parallelToolCalls ?? true;
 
         const response: Record<string, unknown> = {
             id: responseId,
@@ -38,6 +41,7 @@ export class ResponseFormatter {
             error: null,
             incomplete_details: null,
             model: modelId,
+            parallel_tool_calls: parallelToolCalls,
             output: includeOutput
                 ? [
                     {
@@ -63,7 +67,8 @@ export class ResponseFormatter {
                 }
                 : null,
             user: null,
-            metadata: metadata ?? {}
+            metadata: metadata ?? {},
+            text: includeOutput ? outputText : ''
         };
 
         response.instructions = instructions ?? '';
@@ -75,6 +80,7 @@ export class ResponseFormatter {
                 if (messageItem) {
                     const text = (messageItem as { content?: Array<{ text?: string }> }).content?.[0]?.text ?? '';
                     response.output_text = text;
+                    response.text = text;
                 }
             }
         }
@@ -152,7 +158,12 @@ export class ResponseFormatter {
         status: ResponseStatus = 'completed',
         instructions: string | null = null,
         metadata: Record<string, unknown> | null = null,
-        options?: { createdAt?: number; outputId?: string; outputItems?: Array<Record<string, unknown>> }
+        options?: {
+            createdAt?: number;
+            outputId?: string;
+            outputItems?: Array<Record<string, unknown>>;
+            parallelToolCalls?: boolean;
+        }
     ): ResponsesResponse {
         const response = this.createResponseEnvelope(
             responseId,
@@ -167,7 +178,8 @@ export class ResponseFormatter {
                 outputText: responseText,
                 outputId: options?.outputId,
                 includeOutput: true,
-                outputItems: options?.outputItems
+                outputItems: options?.outputItems,
+                parallelToolCalls: options?.parallelToolCalls
             }
         ) as unknown as ResponsesResponse;
 
